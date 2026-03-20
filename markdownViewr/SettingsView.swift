@@ -1,0 +1,494 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettingsView()
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
+
+            EditorsSettingsView()
+                .tabItem {
+                    Label("Editors", systemImage: "square.and.pencil")
+                }
+
+            ThemeSettingsView()
+                .tabItem {
+                    Label("Themes", systemImage: "paintpalette")
+                }
+        }
+        .frame(minWidth: 380, maxWidth: .infinity, minHeight: 350, maxHeight: .infinity)
+    }
+}
+
+struct GeneralSettingsView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @State private var isDefault = false
+    @State private var checkPerformed = false
+    @State private var showCSSHelp = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("General")
+                .font(.headline)
+                .padding(.bottom, 16)
+
+            GroupBox {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Default Markdown Viewer")
+                            .font(.body)
+                        if checkPerformed {
+                            Text(isDefault
+                                ? "markdownViewr is the default app for .md files."
+                                : "Another app is currently set as the default for .md files.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    if isDefault {
+                        Label("Default", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                    } else {
+                        Button("Set as Default") {
+                            setAsDefault()
+                        }
+                    }
+                }
+                .padding(4)
+            }
+
+            GroupBox {
+                HStack {
+                    Text("Frontmatter")
+                        .font(.body)
+                    Spacer()
+                    Picker("", selection: $themeManager.frontmatterMode) {
+                        ForEach(MarkdownDocument.FrontmatterMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+                .padding(4)
+            }
+            .padding(.top, 12)
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Global Custom CSS")
+                            .font(.body)
+                        Button {
+                            showCSSHelp.toggle()
+                        } label: {
+                            Image(systemName: "questionmark.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $showCSSHelp, arrowEdge: .trailing) {
+                            CSSHelpView()
+                        }
+                    }
+                    Text("Applied to every document, regardless of theme.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $themeManager.globalCSS)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 100, maxHeight: 200)
+                        .border(Color.secondary.opacity(0.3))
+                        .scrollContentBackground(.hidden)
+                }
+                .padding(4)
+            }
+            .padding(.top, 12)
+
+            Spacer()
+        }
+        .padding(20)
+        .onAppear {
+            checkIfDefault()
+        }
+    }
+
+    private static let markdownUTIs: [String] = {
+        var utis: [String] = ["net.daringfireball.markdown"]
+        if let resolved = UTType(filenameExtension: "md") {
+            utis.append(resolved.identifier)
+        }
+        return Array(Set(utis))
+    }()
+
+    private func checkIfDefault() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+
+        isDefault = Self.markdownUTIs.allSatisfy { uti in
+            let handler = LSCopyDefaultRoleHandlerForContentType(
+                uti as CFString,
+                .all
+            )?.takeRetainedValue() as String?
+            return handler?.lowercased() == bundleID.lowercased()
+        }
+        checkPerformed = true
+    }
+
+    private func setAsDefault() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+
+        for uti in Self.markdownUTIs {
+            LSSetDefaultRoleHandlerForContentType(
+                uti as CFString,
+                .all,
+                bundleID as CFString
+            )
+        }
+
+        checkIfDefault()
+    }
+}
+
+struct EditorsSettingsView: View {
+    @EnvironmentObject var editorManager: EditorManager
+    @State private var selectedEditorID: UUID?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("External Editors")
+                .font(.headline)
+                .padding(.bottom, 8)
+
+            Text("Configure applications to open markdown files for editing.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 16)
+
+            List(selection: $selectedEditorID) {
+                ForEach(editorManager.editors) { editor in
+                    HStack {
+                        if let icon = NSWorkspace.shared.icon(forFile: editor.path) as NSImage? {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                        }
+                        VStack(alignment: .leading) {
+                            HStack {
+                                Text(editor.name)
+                                if !editor.exists {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.yellow)
+                                        .help("Application not found at \(editor.path)")
+                                }
+                            }
+                            Text(editor.path)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if editor.opensFolder {
+                            Text("Opens folder")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.quaternary)
+                                .cornerRadius(4)
+                        }
+                    }
+                    .tag(editor.id)
+                }
+                .onDelete { indexSet in
+                    for index in indexSet {
+                        editorManager.removeEditor(at: index)
+                    }
+                }
+            }
+            .listStyle(.bordered)
+            .frame(minHeight: 150)
+
+            HStack {
+                Button {
+                    addEditor()
+                } label: {
+                    Image(systemName: "plus")
+                }
+
+                Button {
+                    if let id = selectedEditorID {
+                        editorManager.removeEditor(id: id)
+                        selectedEditorID = nil
+                    }
+                } label: {
+                    Image(systemName: "minus")
+                }
+                .disabled(selectedEditorID == nil)
+
+                Spacer()
+
+                if let id = selectedEditorID,
+                   let index = editorManager.editors.firstIndex(where: { $0.id == id }) {
+                    Toggle("Opens folder instead of file", isOn: Binding(
+                        get: { editorManager.editors[index].opensFolder },
+                        set: { editorManager.editors[index].opensFolder = $0 }
+                    ))
+                    .font(.caption)
+                }
+            }
+            .padding(.top, 8)
+        }
+        .padding(20)
+    }
+
+    private func addEditor() {
+        let panel = NSOpenPanel()
+        panel.title = "Select Application"
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+
+        if panel.runModal() == .OK, let url = panel.url {
+            let name = url.deletingPathExtension().lastPathComponent
+            let editor = EditorConfig(name: name, path: url.path)
+            editorManager.addEditor(editor)
+        }
+    }
+}
+
+struct ThemeEditorItem: Identifiable {
+    let id = UUID()
+    let theme: Theme?
+}
+
+struct ThemeSettingsView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @State private var selectedThemeName: String?
+    @State private var editorItem: ThemeEditorItem?
+    @State private var showDeleteConfirm = false
+
+    private var selectedTheme: Theme? {
+        themeManager.allThemes.first { $0.name == selectedThemeName }
+    }
+
+    private var selectedThemeIndex: Int {
+        themeManager.allThemes.firstIndex { $0.name == selectedThemeName } ?? -1
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Themes")
+                .font(.headline)
+                .padding(.bottom, 8)
+
+            HStack {
+                Text("Drag to reorder. Cmd+Shift+↑/↓ cycles through enabled themes.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                HStack(spacing: 0) {
+                    Text("Enabled")
+                        .frame(width: 56, alignment: .center)
+                    Text("Default")
+                        .frame(width: 56, alignment: .center)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.trailing, 20)
+            }
+            .padding(.bottom, 8)
+
+            List(selection: $selectedThemeName) {
+                ForEach(themeManager.allThemes) { theme in
+                    let enabled = themeManager.isThemeEnabled(theme.name)
+                    HStack(spacing: 0) {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color(hex: theme.colors.background) ?? .gray)
+                                .frame(width: 16, height: 16)
+                                .overlay(Circle().stroke(.quaternary, lineWidth: 1))
+                            Circle().fill(Color(hex: theme.colors.text) ?? .gray)
+                                .frame(width: 16, height: 16)
+                            Circle().fill(Color(hex: theme.colors.heading1) ?? .gray)
+                                .frame(width: 16, height: 16)
+                            Circle().fill(Color(hex: theme.colors.heading2) ?? .gray)
+                                .frame(width: 16, height: 16)
+                            Circle().fill(Color(hex: theme.colors.link) ?? .gray)
+                                .frame(width: 16, height: 16)
+                        }
+                        .opacity(enabled ? 1.0 : 0.4)
+
+                        Text(theme.name)
+                            .padding(.leading, 8)
+                            .foregroundStyle(enabled ? .primary : .secondary)
+
+                        if theme.isBuiltIn {
+                            Text("built-in")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.leading, 4)
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: Binding(
+                            get: { enabled },
+                            set: { themeManager.setThemeEnabled(theme.name, enabled: $0) }
+                        ))
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                        .frame(width: 56, alignment: .center)
+
+                        Toggle("", isOn: Binding(
+                            get: { theme.name == themeManager.activeThemeName },
+                            set: { isOn in
+                                if isOn {
+                                    if !enabled {
+                                        themeManager.setThemeEnabled(theme.name, enabled: true)
+                                    }
+                                    themeManager.activeThemeName = theme.name
+                                }
+                            }
+                        ))
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                        .frame(width: 56, alignment: .center)
+                    }
+                    .tag(theme.name)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedThemeName = theme.name
+                    }
+                }
+            }
+            .listStyle(.bordered)
+
+            HStack {
+                Button("New") {
+                    editorItem = ThemeEditorItem(theme: nil)
+                }
+
+                Button("Duplicate") {
+                    guard let theme = selectedTheme else { return }
+                    var copy = theme
+                    copy.name = theme.name + " Copy"
+                    copy.isBuiltIn = false
+                    editorItem = ThemeEditorItem(theme: copy)
+                }
+                .disabled(selectedThemeName == nil)
+
+                Button("Edit") {
+                    guard let theme = selectedTheme else { return }
+                    editorItem = ThemeEditorItem(theme: theme)
+                }
+                .disabled(selectedThemeName == nil)
+
+                Button("Delete") {
+                    showDeleteConfirm = true
+                }
+                .disabled(selectedThemeName == nil)
+
+                Button {
+                    if let name = selectedThemeName {
+                        themeManager.moveThemeUp(name: name)
+                    }
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .frame(minHeight: 16)
+                }
+                .disabled(selectedThemeName == nil || selectedThemeIndex == 0)
+
+                Button {
+                    if let name = selectedThemeName {
+                        themeManager.moveThemeDown(name: name)
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .frame(minHeight: 16)
+                }
+                .disabled(selectedThemeName == nil || selectedThemeIndex == themeManager.allThemes.count - 1)
+
+                Spacer()
+
+                Button("Restore Built-ins") {
+                    themeManager.restoreBuiltInThemes()
+                }
+                .disabled(!themeManager.hasDeletedBuiltIns)
+            }
+            .padding(.top, 8)
+        }
+        .padding(20)
+        .onAppear {
+            themeManager.loadThemes()
+        }
+        .onChange(of: editorItem?.id) { _ in
+            if let item = editorItem {
+                ThemeEditorWindowController.shared.show(
+                    editingTheme: item.theme,
+                    themeManager: themeManager
+                )
+                editorItem = nil
+            }
+        }
+        .alert("Delete Theme?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                if let theme = selectedTheme {
+                    try? themeManager.deleteTheme(theme)
+                    selectedThemeName = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let theme = selectedTheme {
+                if theme.isBuiltIn {
+                    Text("Remove \"\(theme.name)\" from the list? You can restore it later with \"Restore Built-ins\".")
+                } else {
+                    Text("Permanently delete \"\(theme.name)\"? This cannot be undone.")
+                }
+            }
+        }
+    }
+}
+
+class ThemeEditorWindowController {
+    static let shared = ThemeEditorWindowController()
+    private var window: NSWindow?
+
+    func show(editingTheme: Theme?, themeManager: ThemeManager) {
+        if let window, window.isVisible {
+            window.close()
+        }
+
+        let editorView = ThemeEditorView(editingTheme: editingTheme)
+            .environmentObject(themeManager)
+
+        let hostingView = NSHostingView(rootView: editorView)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 1000, height: 900)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1000, height: 900),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = editingTheme == nil ? "New Theme" : "Edit Theme"
+        window.contentView = hostingView
+        window.minSize = NSSize(width: 800, height: 400)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+
+        self.window = window
+    }
+
+    func close() {
+        window?.close()
+        window = nil
+    }
+}

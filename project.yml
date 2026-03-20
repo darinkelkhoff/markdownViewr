@@ -1,0 +1,59 @@
+name: markdownViewr
+options:
+  bundleIdPrefix: com.dkelkhoff
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+
+packages:
+  swift-markdown:
+    url: https://github.com/apple/swift-markdown.git
+    from: "0.4.0"
+
+targets:
+  markdownViewr:
+    type: application
+    platform: macOS
+    sources:
+      - markdownViewr
+    resources:
+      - markdownViewr/Resources
+    dependencies:
+      - package: swift-markdown
+        product: Markdown
+    settings:
+      base:
+        INFOPLIST_FILE: markdownViewr/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.dkelkhoff.markdownViewr
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        ENABLE_APP_SANDBOX: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: markdownViewr/Info.plist
+      properties:
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Markdown Document
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Default
+            LSItemContentTypes:
+              - net.daringfireball.markdown
+              - public.plain-text
+            CFBundleTypeExtensions:
+              - md
+              - markdown
+              - mdown
+              - mkd
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: Markdown Document
+            UTTypeConformsTo:
+              - public.plain-text
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - md
+                - markdown
+                - mdown
+                - mkd

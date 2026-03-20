@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{{BASE_TAG}}
+<style id="base-css">
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body-font);
+    font-size: var(--base-font-size);
+    line-height: var(--line-height);
+    padding: 32px 48px;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 { font-family: var(--heading-font); font-weight: 600; }
+h1 { color: var(--h1); font-size: var(--h1-size); margin: 24px 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, var(--text) 20%, transparent); }
+h2 { color: var(--h2); font-size: var(--h2-size); margin: 20px 0 12px 0; padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
+h3 { color: var(--h3); font-size: var(--h3-size); margin: 18px 0 10px 0; }
+h4 { color: var(--h4); font-size: var(--h4-size); margin: 16px 0 8px 0; }
+h5 { color: var(--h5); font-size: var(--h5-size); margin: 14px 0 6px 0; }
+h6 { color: var(--h6); font-size: var(--h6-size); margin: 14px 0 6px 0; }
+
+h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
+
+p {
+    margin: 0 0 16px 0;
+}
+
+a {
+    color: var(--link);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+pre {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 0 0 16px 0;
+    overflow-x: auto;
+}
+
+pre code {
+    font-family: var(--code-font);
+    font-size: var(--code-font-size);
+    color: var(--code-text);
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+code {
+    font-family: var(--code-font);
+    font-size: 0.9em;
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+blockquote {
+    border-left: 3px solid var(--blockquote-border);
+    padding: 8px 16px;
+    margin: 0 0 16px 0;
+    background: color-mix(in srgb, var(--blockquote-bg) 50%, transparent);
+    border-radius: 0 8px 8px 0;
+}
+
+blockquote blockquote {
+    background: color-mix(in srgb, var(--blockquote-bg) 75%, transparent);
+}
+
+blockquote blockquote blockquote {
+    background: var(--blockquote-bg);
+}
+
+blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+ul, ol {
+    padding-left: 24px;
+    margin: 0 0 16px 0;
+}
+
+li {
+    margin-bottom: 4px;
+}
+
+li > ul, li > ol {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+    margin: 24px 0;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0 0 16px 0;
+}
+
+th, td {
+    border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+    padding: 8px 12px;
+    text-align: left;
+}
+
+th {
+    background: var(--code-bg);
+    font-weight: 600;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+del {
+    opacity: 0.6;
+}
+
+.frontmatter {
+    margin: 0 0 24px 0;
+    padding: 12px 16px;
+    background: var(--blockquote-bg);
+    border-radius: 8px;
+    border-left: 3px solid var(--blockquote-border);
+    font-size: 0.85em;
+}
+
+.frontmatter table {
+    width: auto;
+    border: none;
+    margin: 0;
+}
+
+.frontmatter td {
+    border: none;
+    padding: 2px 12px 2px 0;
+    vertical-align: top;
+}
+
+.frontmatter .fm-key {
+    color: var(--link);
+    font-weight: 600;
+    white-space: nowrap;
+}
+</style>
+<style id="theme-css">
+{{THEME_CSS}}
+</style>
+</head>
+<body>
+<div id="content">
+{{CONTENT}}
+</div>
+<script>
+function updateThemeCSS(css) {
+    document.getElementById('theme-css').textContent = css;
+}
+
+function updateContent(html) {
+    var scrollRatio = document.documentElement.scrollTop /
+        Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
+    document.getElementById('content').innerHTML = html;
+    var newMax = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    document.documentElement.scrollTop = scrollRatio * newMax;
+}
+
+var _findMatches = [];
+var _findIndex = -1;
+
+function findAll(query) {
+    clearFind();
+    if (!query) return JSON.stringify({current: 0, total: 0});
+
+    var content = document.getElementById('content');
+    var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+    var textNodes = [];
+    var node;
+    while (node = walker.nextNode()) textNodes.push(node);
+
+    var lowerQuery = query.toLowerCase();
+    for (var i = 0; i < textNodes.length; i++) {
+        var n = textNodes[i];
+        var text = n.textContent;
+        var lower = text.toLowerCase();
+        var idx = 0;
+        while ((idx = lower.indexOf(lowerQuery, idx)) !== -1) {
+            var range = document.createRange();
+            range.setStart(n, idx);
+            range.setEnd(n, idx + query.length);
+            var mark = document.createElement('mark');
+            mark.className = 'find-match';
+            mark.style.background = 'color-mix(in srgb, var(--text) 25%, transparent)';
+            mark.style.color = 'inherit';
+            mark.style.borderRadius = '2px';
+            range.surroundContents(mark);
+            _findMatches.push(mark);
+            // After surroundContents, the text node is split; re-walk from mark's next sibling
+            n = mark.nextSibling;
+            if (!n) break;
+            lower = n.textContent.toLowerCase();
+            idx = 0;
+        }
+    }
+
+    if (_findMatches.length > 0) {
+        _findIndex = 0;
+        highlightCurrent();
+    }
+    return JSON.stringify({current: _findIndex + 1, total: _findMatches.length});
+}
+
+function findNext() {
+    if (_findMatches.length === 0) return JSON.stringify({current: 0, total: 0});
+    unhighlightCurrent();
+    _findIndex = (_findIndex + 1) % _findMatches.length;
+    highlightCurrent();
+    return JSON.stringify({current: _findIndex + 1, total: _findMatches.length});
+}
+
+function findPrev() {
+    if (_findMatches.length === 0) return JSON.stringify({current: 0, total: 0});
+    unhighlightCurrent();
+    _findIndex = (_findIndex - 1 + _findMatches.length) % _findMatches.length;
+    highlightCurrent();
+    return JSON.stringify({current: _findIndex + 1, total: _findMatches.length});
+}
+
+function highlightCurrent() {
+    if (_findIndex >= 0 && _findIndex < _findMatches.length) {
+        _findMatches[_findIndex].style.background = 'color-mix(in srgb, var(--text) 40%, transparent)';
+        _findMatches[_findIndex].style.outline = '2px solid color-mix(in srgb, var(--link) 60%, transparent)';
+        _findMatches[_findIndex].scrollIntoView({block: 'center', behavior: 'smooth'});
+    }
+}
+
+function unhighlightCurrent() {
+    if (_findIndex >= 0 && _findIndex < _findMatches.length) {
+        _findMatches[_findIndex].style.background = 'color-mix(in srgb, var(--text) 25%, transparent)';
+        _findMatches[_findIndex].style.outline = 'none';
+    }
+}
+
+function clearFind() {
+    for (var i = 0; i < _findMatches.length; i++) {
+        var mark = _findMatches[i];
+        var parent = mark.parentNode;
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+        parent.removeChild(mark);
+        parent.normalize();
+    }
+    _findMatches = [];
+    _findIndex = -1;
+}
+</script>
+</body>
+</html>
