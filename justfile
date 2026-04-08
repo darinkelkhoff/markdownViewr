@@ -1,14 +1,16 @@
-# Build and run markdownViewr
+default:
+    @just --list
 
+# Kill the running app
 kill:
-   killall -9 markdownViewr || true
+    -killall -9 markdownViewr 2>/dev/null
 
 # Build the app
 build:
     xcodebuild -project markdownViewr.xcodeproj -scheme markdownViewr -destination 'platform=macOS' build
 
-# Build and open the app
-run: build
+# Kill, build, and launch the app
+run: kill build
     @open "$(xcodebuild -project markdownViewr.xcodeproj -scheme markdownViewr -showBuildSettings 2>/dev/null | grep ' BUILT_PRODUCTS_DIR' | awk '{print $3}')/markdownViewr.app"
 
 # Open a specific markdown file
