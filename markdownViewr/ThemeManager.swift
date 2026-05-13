@@ -119,9 +119,69 @@ class ThemeManager: ObservableObject {
     }
 
     func restoreBuiltInThemes() {
+        let builtInNames = Set(loadBuiltInThemes().map(\.name))
+        let userThemes = loadUserThemes()
+
+        var takenNames = builtInNames
+        for theme in userThemes where !builtInNames.contains(theme.name) {
+            takenNames.insert(theme.name)
+        }
+
+        var renameMap: [String: String] = [:]
+        for theme in userThemes where builtInNames.contains(theme.name) {
+            let newName = Self.uniqueName(base: theme.name, existing: takenNames)
+            takenNames.insert(newName)
+            renameMap[theme.name] = newName
+
+            var renamed = theme
+            renamed.name = newName
+            try? writeUserThemeFile(renamed)
+
+            let themesDir = Self.userThemesDirectory
+            let oldFile = themesDir.appendingPathComponent(Self.userThemeFilename(for: theme.name))
+            let newFile = themesDir.appendingPathComponent(Self.userThemeFilename(for: newName))
+            if oldFile != newFile {
+                try? FileManager.default.removeItem(at: oldFile)
+            }
+        }
+
+        if !renameMap.isEmpty {
+            if let newActive = renameMap[activeThemeName] {
+                activeThemeName = newActive
+            }
+            let oldOrder = themeOrder
+            let newOrder = oldOrder.map { renameMap[$0] ?? $0 }
+            if newOrder != oldOrder {
+                themeOrder = newOrder
+            }
+        }
+
         deletedBuiltIns = []
         disabledThemes = []
         loadThemes()
+    }
+
+    private static func uniqueName(base: String, existing: Set<String>) -> String {
+        if !existing.contains(base) { return base }
+        var n = 2
+        while existing.contains("\(base) (\(n))") {
+            n += 1
+        }
+        return "\(base) (\(n))"
+    }
+
+    private static func userThemeFilename(for name: String) -> String {
+        name.replacingOccurrences(of: " ", with: "-").lowercased().appending(".json")
+    }
+
+    private func writeUserThemeFile(_ theme: Theme) throws {
+        let themesDir = Self.userThemesDirectory
+        try FileManager.default.createDirectory(at: themesDir, withIntermediateDirectories: true)
+        let url = themesDir.appendingPathComponent(Self.userThemeFilename(for: theme.name))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(theme)
+        try data.write(to: url)
     }
 
     private func loadBuiltInThemes() -> [Theme] {
@@ -165,20 +225,7 @@ class ThemeManager: ObservableObject {
     }
 
     func saveUserTheme(_ theme: Theme) throws {
-        let themesDir = Self.userThemesDirectory
-        try FileManager.default.createDirectory(at: themesDir, withIntermediateDirectories: true)
-
-        let filename = theme.name
-            .replacingOccurrences(of: " ", with: "-")
-            .lowercased()
-            .appending(".json")
-        let url = themesDir.appendingPathComponent(filename)
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(theme)
-        try data.write(to: url)
-
+        try writeUserThemeFile(theme)
         loadThemes()
     }
 
@@ -207,12 +254,7 @@ class ThemeManager: ObservableObject {
             deleted.insert(theme.name)
             deletedBuiltIns = deleted
         } else {
-            let themesDir = Self.userThemesDirectory
-            let filename = theme.name
-                .replacingOccurrences(of: " ", with: "-")
-                .lowercased()
-                .appending(".json")
-            let userFile = themesDir.appendingPathComponent(filename)
+            let userFile = Self.userThemesDirectory.appendingPathComponent(Self.userThemeFilename(for: theme.name))
             if FileManager.default.fileExists(atPath: userFile.path) {
                 try FileManager.default.removeItem(at: userFile)
             }

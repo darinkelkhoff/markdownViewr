@@ -457,7 +457,7 @@ struct ThemeSettingsView: View {
     }
 }
 
-class ThemeEditorWindowController {
+class ThemeEditorWindowController: NSObject, NSWindowDelegate {
     static let shared = ThemeEditorWindowController()
     private var window: NSWindow?
 
@@ -481,6 +481,8 @@ class ThemeEditorWindowController {
         window.title = editingTheme == nil ? "New Theme" : "Edit Theme"
         window.contentView = hostingView
         window.minSize = NSSize(width: 800, height: 400)
+        window.isReleasedWhenClosed = false
+        window.delegate = self
         window.center()
         window.makeKeyAndOrderFront(nil)
 
@@ -489,6 +491,9 @@ class ThemeEditorWindowController {
 
     func close() {
         window?.close()
+    }
+
+    func windowWillClose(_ notification: Notification) {
         window = nil
     }
 }

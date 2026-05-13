@@ -392,7 +392,7 @@ struct ThemeEditorView: View {
         }
 
         let isRename = trimmedName != editingTheme?.name
-        if isRename && themeManager.themes.contains(where: { $0.name == trimmedName }) {
+        if isRename && themeManager.allThemes.contains(where: { $0.name == trimmedName }) {
             nameErrorMessage = "A theme named \"\(trimmedName)\" already exists."
             showNameError = true
             return
