@@ -48,6 +48,8 @@ struct ThemeColors: Codable, Hashable {
     var codeText: String
     var blockquoteBorder: String
     var blockquoteBackground: String
+    var highlightBackground: String
+    var highlightText: String
 
     init(
         background: String = "#1e1e2e",
@@ -62,7 +64,9 @@ struct ThemeColors: Codable, Hashable {
         codeBackground: String = "#181825",
         codeText: String = "#a6e3a1",
         blockquoteBorder: String = "#cba6f7",
-        blockquoteBackground: String = "#252535"
+        blockquoteBackground: String = "#252535",
+        highlightBackground: String = "#ffd700",
+        highlightText: String = "#1a1a1a"
     ) {
         self.background = background
         self.text = text
@@ -77,6 +81,35 @@ struct ThemeColors: Codable, Hashable {
         self.codeText = codeText
         self.blockquoteBorder = blockquoteBorder
         self.blockquoteBackground = blockquoteBackground
+        self.highlightBackground = highlightBackground
+        self.highlightText = highlightText
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case background, text
+        case heading1, heading2, heading3, heading4, heading5, heading6
+        case link, codeBackground, codeText
+        case blockquoteBorder, blockquoteBackground
+        case highlightBackground, highlightText
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        background = try c.decode(String.self, forKey: .background)
+        text = try c.decode(String.self, forKey: .text)
+        heading1 = try c.decode(String.self, forKey: .heading1)
+        heading2 = try c.decode(String.self, forKey: .heading2)
+        heading3 = try c.decode(String.self, forKey: .heading3)
+        heading4 = try c.decode(String.self, forKey: .heading4)
+        heading5 = try c.decode(String.self, forKey: .heading5)
+        heading6 = try c.decode(String.self, forKey: .heading6)
+        link = try c.decode(String.self, forKey: .link)
+        codeBackground = try c.decode(String.self, forKey: .codeBackground)
+        codeText = try c.decode(String.self, forKey: .codeText)
+        blockquoteBorder = try c.decode(String.self, forKey: .blockquoteBorder)
+        blockquoteBackground = try c.decode(String.self, forKey: .blockquoteBackground)
+        highlightBackground = try c.decodeIfPresent(String.self, forKey: .highlightBackground) ?? "#ffd700"
+        highlightText = try c.decodeIfPresent(String.self, forKey: .highlightText) ?? "#1a1a1a"
     }
 }
 
