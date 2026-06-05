@@ -58,7 +58,8 @@ struct MarkdownDocument: FileDocument {
             }
         }
 
-        let content = frontmatter != nil ? body : markdown
+        let rawContent = frontmatter != nil ? body : markdown
+        let content = extensions.subscript_ ? preProcessSubscript(rawContent) : rawContent
         let document = Document(parsing: content)
         var htmlVisitor = HTMLConverter()
         html += htmlVisitor.visit(document)
@@ -139,6 +140,62 @@ struct MarkdownDocument: FileDocument {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
+    // Converts ~text~ to <sub>text</sub> in raw markdown before the parser runs,
+    // because cmark-gfm treats single-tilde pairs as strikethrough and consumes them.
+    private static func preProcessSubscript(_ markdown: String) -> String {
+        var result = ""
+        var inFence = false
+        var fenceChar: Character = "`"
+        var fenceLength = 0
+
+        let lines = markdown.components(separatedBy: "\n")
+        for (i, line) in lines.enumerated() {
+            let suffix = i < lines.count - 1 ? "\n" : ""
+            if !inFence {
+                let stripped = line.drop(while: { $0 == " " || $0 == "\t" })
+                let backticks = stripped.prefix(while: { $0 == "`" }).count
+                let tildes = stripped.prefix(while: { $0 == "~" }).count
+                if backticks >= 3 || tildes >= 3 {
+                    let (ch, count) = backticks >= 3 ? (Character("`"), backticks) : (Character("~"), tildes)
+                    inFence = true; fenceChar = ch; fenceLength = count
+                    result += line + suffix
+                } else {
+                    result += processSubscriptInLine(line) + suffix
+                }
+            } else {
+                let stripped = line.drop(while: { $0 == " " || $0 == "\t" })
+                let delimCount = stripped.prefix(while: { $0 == fenceChar }).count
+                let rest = String(stripped.dropFirst(delimCount)).trimmingCharacters(in: .whitespaces)
+                if delimCount >= fenceLength && rest.isEmpty { inFence = false }
+                result += line + suffix
+            }
+        }
+        return result
+    }
+
+    private static func processSubscriptInLine(_ line: String) -> String {
+        guard let codeSpanRegex = try? NSRegularExpression(pattern: "`+[^`]*`+", options: []) else {
+            return applySubscriptRegex(line)
+        }
+        var result = ""
+        var lastEnd = line.startIndex
+        let matches = codeSpanRegex.matches(in: line, range: NSRange(line.startIndex..., in: line))
+        for match in matches {
+            guard let range = Range(match.range, in: line) else { continue }
+            result += applySubscriptRegex(String(line[lastEnd..<range.lowerBound]))
+            result += String(line[range])
+            lastEnd = range.upperBound
+        }
+        result += applySubscriptRegex(String(line[lastEnd...]))
+        return result
+    }
+
+    private static func applySubscriptRegex(_ text: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "(?<!~)~([^~\\n]+?)~(?!~)", options: []) else { return text }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "<sub>$1</sub>")
+    }
+
     private static func applyExtensions(_ html: String, extensions: MarkdownExtensions) -> String {
         // Split on <pre...> tags (with optional attributes) so code blocks are never transformed.
         guard let preOpenRegex = try? NSRegularExpression(pattern: "<pre(?:\\s[^>]*)?>", options: []) else {
@@ -197,11 +254,8 @@ struct MarkdownDocument: FileDocument {
         if extensions.superscript {
             result = applyRegex(result, pattern: "\\^(.+?)\\^", template: "<sup>$1</sup>")
         }
-        if extensions.subscript_ {
-            // ~~text~~ is rendered as <del>text</del> by the parser before this runs,
-            // so there are no bare ~~ sequences left to conflict with single-~ subscript.
-            result = applyRegex(result, pattern: "~(.+?)~", template: "<sub>$1</sub>")
-        }
+        // subscript: handled in preProcessSubscript before the parser runs,
+        // because cmark-gfm treats ~text~ as strikethrough before we can post-process.
         if extensions.underline {
             result = applyRegex(result, pattern: "\\+\\+(.+?)\\+\\+", template: "<ins>$1</ins>")
         }
