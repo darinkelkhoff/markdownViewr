@@ -120,6 +120,8 @@ struct ThemeEditorView: View {
                 colorRow("Code Text", $colors.codeText)
                 colorRow("Quote Border", $colors.blockquoteBorder)
                 colorRow("Quote BG", $colors.blockquoteBackground)
+                colorRow("Highlight BG", $colors.highlightBackground)
+                colorRow("Highlight Text", $colors.highlightText)
             }
         }
     }

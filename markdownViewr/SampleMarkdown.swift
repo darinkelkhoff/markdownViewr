@@ -19,6 +19,10 @@ $ markdownviewr --version
 - [Hyperlinks](https://example.com) styled to your palette
 - Inline `code spans` and fenced code blocks
 
+## Extensions
+
+This sentence uses ==highlighted text==, H~2~O for subscript, E=mc^2^ for superscript, and ++underlined text++.
+
 ### Code Example
 
 ```swift

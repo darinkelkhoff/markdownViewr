@@ -142,7 +142,7 @@ struct MarkdownDocument: FileDocument {
     private static func applyExtensions(_ html: String, extensions: MarkdownExtensions) -> String {
         // Split on <pre...> tags (with optional attributes) so code blocks are never transformed.
         guard let preOpenRegex = try? NSRegularExpression(pattern: "<pre(?:\\s[^>]*)?>", options: []) else {
-            return applyExtensionRegexes(html, extensions: extensions)
+            return html  // fail safe: pass through unchanged
         }
 
         var result = ""
@@ -174,6 +174,22 @@ struct MarkdownDocument: FileDocument {
     }
 
     private static func applyExtensionRegexes(_ text: String, extensions: MarkdownExtensions) -> String {
+        guard let codeRegex = try? NSRegularExpression(pattern: "<code(?:\\s[^>]*)?>.*?</code>", options: [.dotMatchesLineSeparators]) else {
+            return applyRawExtensionRegexes(text, extensions: extensions)
+        }
+        var result = ""
+        var searchRange = text.startIndex..<text.endIndex
+        while let match = codeRegex.firstMatch(in: text, range: NSRange(searchRange, in: text)),
+              let matchRange = Range(match.range, in: text) {
+            result += applyRawExtensionRegexes(String(text[searchRange.lowerBound..<matchRange.lowerBound]), extensions: extensions)
+            result += String(text[matchRange])
+            searchRange = matchRange.upperBound..<text.endIndex
+        }
+        result += applyRawExtensionRegexes(String(text[searchRange]), extensions: extensions)
+        return result
+    }
+
+    private static func applyRawExtensionRegexes(_ text: String, extensions: MarkdownExtensions) -> String {
         var result = text
         if extensions.highlight {
             result = applyRegex(result, pattern: "==(.+?)==", template: "<mark>$1</mark>")

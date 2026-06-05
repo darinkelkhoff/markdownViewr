@@ -18,6 +18,11 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Themes", systemImage: "paintpalette")
                 }
+
+            MarkdownSettingsView()
+                .tabItem {
+                    Label("Markdown", systemImage: "doc.plaintext")
+                }
         }
         .frame(minWidth: 380, maxWidth: .infinity, minHeight: 350, maxHeight: .infinity)
     }
@@ -259,6 +264,82 @@ struct EditorsSettingsView: View {
             let editor = EditorConfig(name: name, path: url.path)
             editorManager.addEditor(editor)
         }
+    }
+}
+
+struct MarkdownSettingsView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Markdown Extensions")
+                .font(.headline)
+                .padding(.bottom, 8)
+
+            Text("Enable or disable inline syntax extensions applied during rendering.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 16)
+
+            GroupBox {
+                VStack(spacing: 0) {
+                    extensionRow(
+                        name: "Highlight",
+                        example: "==text==",
+                        isOn: Binding(
+                            get: { themeManager.markdownExtensions.highlight },
+                            set: { themeManager.markdownExtensions.highlight = $0 }
+                        )
+                    )
+                    Divider().padding(.vertical, 6)
+                    extensionRow(
+                        name: "Superscript",
+                        example: "^text^",
+                        isOn: Binding(
+                            get: { themeManager.markdownExtensions.superscript },
+                            set: { themeManager.markdownExtensions.superscript = $0 }
+                        )
+                    )
+                    Divider().padding(.vertical, 6)
+                    extensionRow(
+                        name: "Subscript",
+                        example: "~text~",
+                        isOn: Binding(
+                            get: { themeManager.markdownExtensions.subscript_ },
+                            set: { themeManager.markdownExtensions.subscript_ = $0 }
+                        )
+                    )
+                    Divider().padding(.vertical, 6)
+                    extensionRow(
+                        name: "Underline",
+                        example: "++text++",
+                        isOn: Binding(
+                            get: { themeManager.markdownExtensions.underline },
+                            set: { themeManager.markdownExtensions.underline = $0 }
+                        )
+                    )
+                }
+                .padding(4)
+            }
+
+            Spacer()
+        }
+        .padding(20)
+    }
+
+    private func extensionRow(name: String, example: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Text(name)
+                .frame(width: 100, alignment: .leading)
+            Text(example)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+        }
+        .padding(.vertical, 2)
     }
 }
 
