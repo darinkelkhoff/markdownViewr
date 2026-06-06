@@ -59,7 +59,7 @@ struct MarkdownDocument: FileDocument {
         }
 
         let rawContent = frontmatter != nil ? body : markdown
-        let content = extensions.subscript_ ? preProcessSubscript(rawContent) : rawContent
+        let content = preProcessSubscript(rawContent, enabled: extensions.subscript_)
         let document = Document(parsing: content)
         var htmlVisitor = HTMLConverter()
         html += htmlVisitor.visit(document)
@@ -142,7 +142,7 @@ struct MarkdownDocument: FileDocument {
 
     // Converts ~text~ to <sub>text</sub> in raw markdown before the parser runs,
     // because cmark-gfm treats single-tilde pairs as strikethrough and consumes them.
-    private static func preProcessSubscript(_ markdown: String) -> String {
+    private static func preProcessSubscript(_ markdown: String, enabled: Bool) -> String {
         var result = ""
         var inFence = false
         var fenceChar: Character = "`"
@@ -160,7 +160,7 @@ struct MarkdownDocument: FileDocument {
                     inFence = true; fenceChar = ch; fenceLength = count
                     result += line + suffix
                 } else {
-                    result += processSubscriptInLine(line) + suffix
+                    result += processSubscriptInLine(line, enabled: enabled) + suffix
                 }
             } else {
                 let stripped = line.drop(while: { $0 == " " || $0 == "\t" })
@@ -173,27 +173,30 @@ struct MarkdownDocument: FileDocument {
         return result
     }
 
-    private static func processSubscriptInLine(_ line: String) -> String {
+    private static func processSubscriptInLine(_ line: String, enabled: Bool) -> String {
         guard let codeSpanRegex = try? NSRegularExpression(pattern: "`+[^`]*`+", options: []) else {
-            return applySubscriptRegex(line)
+            return applySubscriptRegex(line, enabled: enabled)
         }
         var result = ""
         var lastEnd = line.startIndex
         let matches = codeSpanRegex.matches(in: line, range: NSRange(line.startIndex..., in: line))
         for match in matches {
             guard let range = Range(match.range, in: line) else { continue }
-            result += applySubscriptRegex(String(line[lastEnd..<range.lowerBound]))
+            result += applySubscriptRegex(String(line[lastEnd..<range.lowerBound]), enabled: enabled)
             result += String(line[range])
             lastEnd = range.upperBound
         }
-        result += applySubscriptRegex(String(line[lastEnd...]))
+        result += applySubscriptRegex(String(line[lastEnd...]), enabled: enabled)
         return result
     }
 
-    private static func applySubscriptRegex(_ text: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: "(?<!~)~([^~\\n]+?)~(?!~)", options: []) else { return text }
+    private static func applySubscriptRegex(_ text: String, enabled: Bool) -> String {
+        // When disabled, backslash-escape the tildes so cmark-gfm renders them as literal ~text~
+        // instead of treating them as strikethrough.
+        let template = enabled ? "<sub>$1</sub>" : "\\\\~$1\\\\~"
+        guard let regex = try? NSRegularExpression(pattern: "(?<!~)~([^\\s~]+)~(?!~)", options: []) else { return text }
         let range = NSRange(text.startIndex..., in: text)
-        return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "<sub>$1</sub>")
+        return regex.stringByReplacingMatches(in: text, range: range, withTemplate: template)
     }
 
     private static func applyExtensions(_ html: String, extensions: MarkdownExtensions) -> String {
@@ -252,7 +255,7 @@ struct MarkdownDocument: FileDocument {
             result = applyRegex(result, pattern: "==(.+?)==", template: "<mark>$1</mark>")
         }
         if extensions.superscript {
-            result = applyRegex(result, pattern: "\\^(.+?)\\^", template: "<sup>$1</sup>")
+            result = applyRegex(result, pattern: "\\^([^\\s\\^]+)\\^", template: "<sup>$1</sup>")
         }
         // subscript: handled in preProcessSubscript before the parser runs,
         // because cmark-gfm treats ~text~ as strikethrough before we can post-process.
