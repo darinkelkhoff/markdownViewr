@@ -64,6 +64,7 @@ release: kill
         echo "Error: Sparkle tools not found in DerivedData. Run 'just build' first."
         exit 1
     fi
+    rm -rf /tmp/markdownViewr-appcast-input
     mkdir -p /tmp/markdownViewr-appcast-input
     cp "$ZIP" /tmp/markdownViewr-appcast-input/
     "$SPARKLE_BIN/generate_appcast" \
