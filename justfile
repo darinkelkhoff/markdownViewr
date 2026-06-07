@@ -74,6 +74,6 @@ release: kill
     echo "==> Committing and pushing appcast..."
     git add appcast.xml
     git commit -m "release: update appcast for v$VERSION"
-    git push
+    git push origin main
     echo ""
     echo "Done! https://github.com/darinkelkhoff/markdownViewr/releases/tag/v$VERSION"

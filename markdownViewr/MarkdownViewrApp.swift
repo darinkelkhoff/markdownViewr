@@ -27,6 +27,7 @@ struct MarkdownViewrApp: App {
                 Button("Check for Updates...") {
                     updaterController.checkForUpdates(nil)
                 }
+                .disabled(!updaterController.updater.canCheckForUpdates)
             }
 
             CommandGroup(replacing: .appSettings) {
