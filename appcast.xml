@@ -11,7 +11,7 @@
             <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/darinkelkhoff/markdownViewr/releases/download/v1.1.0/markdownViewr-1.1.0.zip" length="4188045" type="application/octet-stream" sparkle:edSignature="70LiSpW246aGNT9FYU7bZ1yEkqOPuDRTF3eKFZ7tz3wPkTz5aHrO36nUnqhATLg3ikq0A4hTBMXjvJx2ydV6Bg=="/>
+            <enclosure url="https://github.com/darinkelkhoff/markdownViewr/releases/download/v1.1.1/markdownViewr-1.1.1.zip" length="4202330" type="application/octet-stream" sparkle:edSignature="gkQkzhSGNIPUHLIR4p8m3Z9GERq/2hfNwvFrqCfOml0mRXRhdeiAE9OAm5iPmrS78c6d24ouFwN1TVfCtVyjBw=="/>
         </item>
     </channel>
 </rss>
