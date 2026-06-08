@@ -30,6 +30,10 @@ release: kill
     #!/usr/bin/env bash
     set -euo pipefail
     VERSION=$(grep 'MARKETING_VERSION' project.yml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    MAJOR=$(echo "$VERSION" | cut -d. -f1)
+    MINOR=$(echo "$VERSION" | cut -d. -f2)
+    PATCH=$(echo "$VERSION" | cut -d. -f3)
+    BUILD_NUMBER=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
     LATEST=$(gh release list --repo darinkelkhoff/markdownViewr --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "none")
     if [[ "$LATEST" == "v$VERSION" ]]; then
         echo "Error: v$VERSION is already released. Bump MARKETING_VERSION in project.yml first."
@@ -38,14 +42,15 @@ release: kill
     ARCHIVE="/tmp/markdownViewr.xcarchive"
     EXPORT="/tmp/markdownViewr-export"
     ZIP="/tmp/markdownViewr-$VERSION.zip"
-    echo "==> Archiving v$VERSION..."
+    echo "==> Archiving v$VERSION (build $BUILD_NUMBER)..."
     rm -rf "$ARCHIVE" "$EXPORT" "$ZIP"
     xcodebuild archive \
         -project markdownViewr.xcodeproj \
         -scheme markdownViewr \
         -archivePath "$ARCHIVE" \
         -destination 'generic/platform=macOS' \
-        ENABLE_HARDENED_RUNTIME=YES | xcpretty || true
+        ENABLE_HARDENED_RUNTIME=YES \
+        CURRENT_PROJECT_VERSION="$BUILD_NUMBER" | xcpretty || true
     echo "==> Exporting with Developer ID signing..."
     xcodebuild -exportArchive \
         -archivePath "$ARCHIVE" \
@@ -65,7 +70,11 @@ release: kill
     ditto -c -k --keepParent "$APP" "$ZIP"
     echo "==> Creating DMG..."
     DMG="/tmp/markdownViewr.dmg"
+    DMG_STAGING="/tmp/markdownViewr-dmg-staging"
     rm -f "$DMG"
+    rm -rf "$DMG_STAGING"
+    mkdir "$DMG_STAGING"
+    cp -R "$APP" "$DMG_STAGING/"
     create-dmg \
         --volname "markdownViewr" \
         --window-size 660 400 \
@@ -74,7 +83,7 @@ release: kill
         --hide-extension "markdownViewr.app" \
         --app-drop-link 480 185 \
         "$DMG" \
-        "$EXPORT/"
+        "$DMG_STAGING/"
     echo "==> Creating GitHub release v$VERSION..."
     gh release create "v$VERSION" "$DMG" "$ZIP" \
         --repo darinkelkhoff/markdownViewr \
