@@ -63,8 +63,20 @@ release: kill
     xcrun stapler staple "$APP"
     echo "==> Packaging final release..."
     ditto -c -k --keepParent "$APP" "$ZIP"
+    echo "==> Creating DMG..."
+    DMG="/tmp/markdownViewr.dmg"
+    rm -f "$DMG"
+    create-dmg \
+        --volname "markdownViewr" \
+        --window-size 660 400 \
+        --icon-size 128 \
+        --icon "markdownViewr.app" 180 185 \
+        --hide-extension "markdownViewr.app" \
+        --app-drop-link 480 185 \
+        "$DMG" \
+        "$EXPORT/"
     echo "==> Creating GitHub release v$VERSION..."
-    gh release create "v$VERSION" "$ZIP" \
+    gh release create "v$VERSION" "$DMG" "$ZIP" \
         --repo darinkelkhoff/markdownViewr \
         --title "markdownViewr v$VERSION" \
         --generate-notes
