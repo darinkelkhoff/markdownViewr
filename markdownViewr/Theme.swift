@@ -2,8 +2,11 @@ import Foundation
 import SwiftUI
 
 struct Theme: Codable, Identifiable, Hashable {
+    static let currentSchemaVersion = 1
+
     var id: String { name }
 
+    var schemaVersion: Int = 1
     var name: String
     var colors: ThemeColors
     var fonts: ThemeFonts
@@ -14,7 +17,7 @@ struct Theme: Codable, Identifiable, Hashable {
     var isBuiltIn: Bool = false
 
     enum CodingKeys: String, CodingKey {
-        case name, colors, fonts, sizes, customCSS
+        case schemaVersion, name, colors, fonts, sizes, customCSS
     }
 
     init(
@@ -25,12 +28,23 @@ struct Theme: Codable, Identifiable, Hashable {
         customCSS: String = "",
         isBuiltIn: Bool = false
     ) {
+        self.schemaVersion = Self.currentSchemaVersion
         self.name = name
         self.colors = colors
         self.fonts = fonts
         self.sizes = sizes
         self.customCSS = customCSS
         self.isBuiltIn = isBuiltIn
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        name = try c.decode(String.self, forKey: .name)
+        colors = try c.decode(ThemeColors.self, forKey: .colors)
+        fonts = try c.decode(ThemeFonts.self, forKey: .fonts)
+        sizes = try c.decode(ThemeSizes.self, forKey: .sizes)
+        customCSS = try c.decodeIfPresent(String.self, forKey: .customCSS) ?? ""
     }
 }
 

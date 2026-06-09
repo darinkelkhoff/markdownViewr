@@ -30,6 +30,12 @@ class ThemeManager: ObservableObject {
             }
         }
     }
+    @Published var contentWidthEnabled: Bool {
+        didSet { UserDefaults.standard.set(contentWidthEnabled, forKey: "contentWidthEnabled") }
+    }
+    @Published var contentWidthPx: Double {
+        didSet { UserDefaults.standard.set(contentWidthPx, forKey: "contentWidthPx") }
+    }
 
     var activeTheme: Theme {
         themes.first { $0.name == activeThemeName } ?? themes.first ?? Self.fallbackTheme
@@ -50,6 +56,11 @@ class ThemeManager: ObservableObject {
         } else {
             self.markdownExtensions = MarkdownExtensions()
         }
+        self.contentWidthEnabled = UserDefaults.standard.object(forKey: "contentWidthEnabled") != nil
+            ? UserDefaults.standard.bool(forKey: "contentWidthEnabled")
+            : true
+        let savedWidth = UserDefaults.standard.double(forKey: "contentWidthPx")
+        self.contentWidthPx = savedWidth > 0 ? savedWidth : 1000
         loadThemes()
     }
 
@@ -230,16 +241,57 @@ class ThemeManager: ObservableObject {
             .filter { $0.pathExtension == "json" }
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),
-                      let theme = try? decoder.decode(Theme.self, from: data)
+                      var theme = try? decoder.decode(Theme.self, from: data)
                 else { return nil }
+                let versionBefore = theme.schemaVersion
+                migrateIfNeeded(&theme)
+                if theme.schemaVersion != versionBefore {
+                    try? writeUserThemeFile(theme)
+                }
                 return theme
             }
             .sorted { $0.name < $1.name }
     }
 
+    func migrateIfNeeded(_ theme: inout Theme) {
+        // Add migration steps here as the schema evolves. Each `if` block
+        // should be a forward migration from one version to the next, in
+        // order, so a theme that is several versions behind migrates fully
+        // in a single load.
+        //
+        // Example (do not remove — shows the pattern):
+        // if theme.schemaVersion < 2 {
+        //     theme.someNewField = derivedDefault(from: theme)
+        //     theme.schemaVersion = 2
+        // }
+        _ = theme  // suppress unused-inout warning until first real migration
+    }
+
     func saveUserTheme(_ theme: Theme) throws {
         try writeUserThemeFile(theme)
         loadThemes()
+    }
+
+    enum ImportConflictResolution { case overwrite, keepBoth, skip }
+
+    func importTheme(_ theme: Theme, resolution: ImportConflictResolution = .keepBoth) {
+        var imported = theme
+        imported.isBuiltIn = false
+        migrateIfNeeded(&imported)
+        let conflict = allThemes.contains { $0.name == imported.name }
+        if conflict {
+            switch resolution {
+            case .overwrite:
+                try? saveUserTheme(imported)
+            case .keepBoth:
+                imported.name = Self.uniqueName(base: imported.name, existing: Set(allThemes.map(\.name)))
+                try? saveUserTheme(imported)
+            case .skip:
+                break
+            }
+        } else {
+            try? saveUserTheme(imported)
+        }
     }
 
     func zoomIn() {
@@ -336,6 +388,10 @@ class ThemeManager: ObservableObject {
 
         if !theme.customCSS.isEmpty {
             css += "\n\n/* Theme CSS */\n\(theme.customCSS)"
+        }
+
+        if contentWidthEnabled {
+            css += "\n\n#content { max-width: calc(\(Int(contentWidthPx))px * var(--zoom)); margin: auto; }"
         }
 
         return css

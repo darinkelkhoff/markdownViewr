@@ -79,6 +79,27 @@ SwiftUI's `Settings` scene and `.sheet` don't support resizing on macOS. Both Se
 - Theme order tracked in UserDefaults key `themeOrder`
 - Active theme tracked in UserDefaults key `activeTheme`
 
+## Theme Schema Versioning
+
+Theme JSON files carry a `schemaVersion` integer field. The current version is in `Theme.currentSchemaVersion` (`Theme.swift`).
+
+**When you add a new field to `Theme`, `ThemeColors`, `ThemeFonts`, or `ThemeSizes`:**
+
+1. Increment `Theme.currentSchemaVersion`.
+2. Add the new field with a sensible default in `init(from decoder:)` using `decodeIfPresent` so older files still load.
+3. Update the built-in theme JSON files in `Resources/themes/` with the new field.
+4. Add a migration step in `ThemeManager.migrateIfNeeded(_ theme: inout Theme)` — an `if theme.schemaVersion < N` block that fills in the new field and bumps `schemaVersion` to `N`. Stack these in order so a theme several versions behind migrates fully in one pass. `migrateIfNeeded` is already called from `loadUserThemes()` (with automatic write-back to disk if the version changed) and from `importTheme(_:resolution:)`. Do not remove the example comment block — it shows future-me the pattern.
+5. Update `ThemeEditorView` to expose any new user-facing fields.
+6. Update `ThemeManager.generateCSS(for:)` if the new field affects rendering.
+
+**Import behaviour (already implemented in `SettingsView.importThemes()`):** if an imported theme's `schemaVersion` exceeds `currentSchemaVersion`, the user is warned before import proceeds. If it is lower, run `migrateIfNeeded` on it during import just as you would for any loaded theme.
+
+**Schema version history:**
+
+| Version | What changed |
+|---|---|
+| 1 | Initial versioned schema (colors, fonts, sizes, customCSS) |
+
 ## Find in Document
 
 - Cmd+F toggles find bar per-window (each window has its own `FindBarController`)

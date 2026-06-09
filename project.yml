@@ -15,6 +15,19 @@ packages:
     from: "2.0.0"
 
 targets:
+  markdownViewrTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - markdownViewrTests
+    dependencies:
+      - target: markdownViewr
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dkelkhoff.markdownViewrTests
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        GENERATE_INFOPLIST_FILE: YES
+
   markdownViewr:
     type: application
     platform: macOS

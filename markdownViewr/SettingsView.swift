@@ -24,7 +24,7 @@ struct SettingsView: View {
                     Label("Markdown", systemImage: "doc.plaintext")
                 }
         }
-        .frame(minWidth: 380, maxWidth: .infinity, minHeight: 350, maxHeight: .infinity)
+        .frame(minWidth: 560, maxWidth: .infinity, minHeight: 350, maxHeight: .infinity)
     }
 }
 
@@ -81,6 +81,27 @@ struct GeneralSettingsView: View {
                     }
                     .labelsHidden()
                     .frame(width: 180)
+                }
+                .padding(4)
+            }
+            .padding(.top, 12)
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Max Content Width", isOn: $themeManager.contentWidthEnabled)
+                        .toggleStyle(.checkbox)
+                    if themeManager.contentWidthEnabled {
+                        HStack(spacing: 10) {
+                            Slider(value: $themeManager.contentWidthPx, in: 600...2400)
+                                .onChange(of: themeManager.contentWidthPx) { v in
+                                    themeManager.contentWidthPx = (v / 10).rounded() * 10
+                                }
+                            Text(String(format: "%d px", Int(themeManager.contentWidthPx)))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .trailing)
+                        }
+                    }
                 }
                 .padding(4)
             }
@@ -456,7 +477,7 @@ struct ThemeSettingsView: View {
                     editorItem = ThemeEditorItem(theme: nil)
                 }
 
-                Button("Duplicate") {
+                Button("Copy") {
                     guard let theme = selectedTheme else { return }
                     var copy = theme
                     copy.name = theme.name + " Copy"
@@ -496,6 +517,15 @@ struct ThemeSettingsView: View {
                 }
                 .disabled(selectedThemeName == nil || selectedThemeIndex == themeManager.allThemes.count - 1)
 
+                Button("Import...") {
+                    importThemes()
+                }
+
+                Button("Export...") {
+                    if let theme = selectedTheme { exportTheme(theme) }
+                }
+                .disabled(selectedThemeName == nil)
+
                 Spacer()
 
                 Button("Restore Built-ins") {
@@ -534,6 +564,64 @@ struct ThemeSettingsView: View {
                     Text("Permanently delete \"\(theme.name)\"? This cannot be undone.")
                 }
             }
+        }
+    }
+
+    private func importThemes() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Themes"
+        panel.allowedContentTypes = [UTType.json]
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            guard let data = try? Data(contentsOf: url),
+                  let theme = try? JSONDecoder().decode(Theme.self, from: data)
+            else { continue }
+            if theme.schemaVersion > Theme.currentSchemaVersion {
+                let alert = NSAlert()
+                alert.messageText = "\"\(theme.name)\" was made with a newer version of markdownViewr"
+                alert.informativeText = "It may not display correctly. Import anyway?"
+                alert.addButton(withTitle: "Import")
+                alert.addButton(withTitle: "Skip")
+                if alert.runModal() != .alertFirstButtonReturn { continue }
+            }
+
+            let conflict = themeManager.allThemes.contains { $0.name == theme.name }
+            if conflict {
+                let alert = NSAlert()
+                alert.messageText = "\"\(theme.name)\" already exists"
+                alert.informativeText = "Choose how to handle the imported copy."
+                alert.addButton(withTitle: "Overwrite")
+                alert.addButton(withTitle: "Keep Both")
+                alert.addButton(withTitle: "Skip")
+                let resolution: ThemeManager.ImportConflictResolution
+                switch alert.runModal() {
+                case .alertFirstButtonReturn:  resolution = .overwrite
+                case .alertSecondButtonReturn: resolution = .keepBoth
+                default:                       resolution = .skip
+                }
+                themeManager.importTheme(theme, resolution: resolution)
+            } else {
+                themeManager.importTheme(theme)
+            }
+        }
+    }
+
+    private func exportTheme(_ theme: Theme) {
+        let panel = NSSavePanel()
+        panel.title = "Export Theme"
+        panel.nameFieldStringValue = theme.name
+            .replacingOccurrences(of: " ", with: "-")
+            .lowercased()
+            .appending(".json")
+        panel.allowedContentTypes = [UTType.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(theme) {
+            try? data.write(to: url)
         }
     }
 }

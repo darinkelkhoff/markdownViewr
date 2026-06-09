@@ -14,6 +14,12 @@ A fast, beautiful markdown viewer for macOS. Open any markdown file — it live-
 
 Open the DMG, drag markdownViewr to Applications, and you're done.
 
+Or install via Homebrew:
+
+```bash
+brew install --cask darinkelkhoff/tap/markdownviewr
+```
+
 ## Features
 
 - **GitHub Flavored Markdown** — tables, task lists, strikethrough, fenced code blocks

@@ -47,6 +47,7 @@ struct HelpView: View {
             - Optional extensions: highlight, superscript, subscript, underline
             - YAML frontmatter support: hide it, show it as a metadata table, or render it as Markdown
             - Fully customizable themes with a built-in theme editor and custom CSS
+            - Max content width setting to keep line lengths readable on wide monitors
             - Vim-style keyboard navigation
             - Find in document with match count
             - One-click open in any configured external editor
@@ -195,10 +196,12 @@ struct HelpView: View {
             - Reorder themes by dragging
             - Delete user themes
             - Restore deleted built-in themes
+            - Import themes from `.json` files (one or more at a time)
+            - Export the selected theme as a `.json` file to share or back up
 
             ## Creating and editing themes
 
-            Click **New Theme** (or **Edit** on an existing user theme) to open the Theme \
+            Click **New** (or **Edit** on an existing user theme) to open the Theme \
             Editor. Changes are previewed live against a sample document.
 
             The editor covers:
@@ -225,11 +228,20 @@ struct HelpView: View {
             code { font-size: 0.95em; }
             ```
 
+            ## Max Content Width
+
+            **Settings > General > Max Content Width** limits how wide the document content \
+            grows. Enable the checkbox and drag the slider to set a maximum width in pixels. \
+            The width scales with zoom so the proportions stay consistent when you zoom in or out.
+
+            This is useful on wide monitors where full-width text lines become hard to read. \
+            A value around 800–1000 px works well for most documents.
+
             ## Theme storage
 
             User themes are stored as JSON files in \
             `~/Library/Application Support/markdownViewr/themes/`. Built-in themes are \
-            bundled with the app and cannot be edited (but can be duplicated).
+            bundled with the app and cannot be edited (but can be copied).
             """
 
         case .editors:

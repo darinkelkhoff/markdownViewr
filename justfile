@@ -17,6 +17,10 @@ run: kill build
 open file: build
     @open -a "$(xcodebuild -project markdownViewr.xcodeproj -scheme markdownViewr -showBuildSettings 2>/dev/null | grep ' BUILT_PRODUCTS_DIR' | awk '{print $3}')/markdownViewr.app" "{{file}}"
 
+# Run the test suite
+test:
+    xcodebuild test -project markdownViewr.xcodeproj -scheme markdownViewrTests -destination 'platform=macOS'
+
 # Regenerate the Xcode project from project.yml
 generate:
     xcodegen generate
@@ -108,5 +112,16 @@ release: kill
     git add appcast.xml
     git commit -m "release: update appcast for v$VERSION"
     git push origin main
+    echo "==> Updating Homebrew cask..."
+    DMG_SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
+    TAP_DIR="/tmp/markdownViewr-homebrew-tap"
+    rm -rf "$TAP_DIR"
+    git clone git@github.com:darinkelkhoff/homebrew-tap.git "$TAP_DIR"
+    sed -i '' "s/version \".*\"/version \"$VERSION\"/" "$TAP_DIR/Casks/markdownviewr.rb"
+    sed -i '' "s/sha256 \".*\"/sha256 \"$DMG_SHA\"/" "$TAP_DIR/Casks/markdownviewr.rb"
+    git -C "$TAP_DIR" add Casks/markdownviewr.rb
+    git -C "$TAP_DIR" commit -m "markdownViewr: update to v$VERSION"
+    git -C "$TAP_DIR" push origin main
     echo ""
     echo "Done! https://github.com/darinkelkhoff/markdownViewr/releases/tag/v$VERSION"
+    echo "      brew install --cask darinkelkhoff/tap/markdownviewr"
