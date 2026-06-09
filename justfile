@@ -21,6 +21,28 @@ open file: build
 test:
     xcodebuild test -project markdownViewr.xcodeproj -scheme markdownViewrTests -destination 'platform=macOS'
 
+# Update the Homebrew cask to match the current release (run after a successful just release)
+update-cask:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VERSION=$(grep 'MARKETING_VERSION' project.yml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    DMG="/tmp/markdownViewr.dmg"
+    if [[ ! -f "$DMG" ]]; then
+        echo "==> Downloading DMG for v$VERSION..."
+        gh release download "v$VERSION" --repo darinkelkhoff/markdownViewr --pattern "markdownViewr.dmg" --dir /tmp --clobber
+    fi
+    DMG_SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
+    TAP_DIR="/tmp/markdownViewr-homebrew-tap"
+    rm -rf "$TAP_DIR"
+    git clone git@github.com:darinkelkhoff/homebrew-tap.git "$TAP_DIR"
+    sed -i.bak "s/version \".*\"/version \"$VERSION\"/" "$TAP_DIR/Casks/markdownviewr.rb"
+    sed -i.bak "s/sha256 \".*\"/sha256 \"$DMG_SHA\"/" "$TAP_DIR/Casks/markdownviewr.rb"
+    rm -f "$TAP_DIR/Casks/markdownviewr.rb.bak"
+    git -C "$TAP_DIR" add Casks/markdownviewr.rb
+    git -C "$TAP_DIR" commit -m "markdownViewr: update to v$VERSION"
+    git -C "$TAP_DIR" push origin main
+    echo "Done! brew install --cask darinkelkhoff/tap/markdownviewr"
+
 # Regenerate the Xcode project from project.yml
 generate:
     xcodegen generate
@@ -112,17 +134,7 @@ release: kill
     git add appcast.xml
     git commit -m "release: update appcast for v$VERSION"
     git push origin main
-    echo "==> Updating Homebrew cask..."
-    DMG_SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
-    TAP_DIR="/tmp/markdownViewr-homebrew-tap"
-    rm -rf "$TAP_DIR"
-    git clone git@github.com:darinkelkhoff/homebrew-tap.git "$TAP_DIR"
-    sed -i.bak "s/version \".*\"/version \"$VERSION\"/" "$TAP_DIR/Casks/markdownviewr.rb"
-    sed -i.bak "s/sha256 \".*\"/sha256 \"$DMG_SHA\"/" "$TAP_DIR/Casks/markdownviewr.rb"
-    rm -f "$TAP_DIR/Casks/markdownviewr.rb.bak"
-    git -C "$TAP_DIR" add Casks/markdownviewr.rb
-    git -C "$TAP_DIR" commit -m "markdownViewr: update to v$VERSION"
-    git -C "$TAP_DIR" push origin main
+    just update-cask
     echo ""
     echo "Done! https://github.com/darinkelkhoff/markdownViewr/releases/tag/v$VERSION"
     echo "      brew install --cask darinkelkhoff/tap/markdownviewr"
