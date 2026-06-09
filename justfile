@@ -117,8 +117,9 @@ release: kill
     TAP_DIR="/tmp/markdownViewr-homebrew-tap"
     rm -rf "$TAP_DIR"
     git clone git@github.com:darinkelkhoff/homebrew-tap.git "$TAP_DIR"
-    sed -i '' "s/version \".*\"/version \"$VERSION\"/" "$TAP_DIR/Casks/markdownviewr.rb"
-    sed -i '' "s/sha256 \".*\"/sha256 \"$DMG_SHA\"/" "$TAP_DIR/Casks/markdownviewr.rb"
+    sed -i.bak "s/version \".*\"/version \"$VERSION\"/" "$TAP_DIR/Casks/markdownviewr.rb"
+    sed -i.bak "s/sha256 \".*\"/sha256 \"$DMG_SHA\"/" "$TAP_DIR/Casks/markdownviewr.rb"
+    rm -f "$TAP_DIR/Casks/markdownviewr.rb.bak"
     git -C "$TAP_DIR" add Casks/markdownviewr.rb
     git -C "$TAP_DIR" commit -m "markdownViewr: update to v$VERSION"
     git -C "$TAP_DIR" push origin main
