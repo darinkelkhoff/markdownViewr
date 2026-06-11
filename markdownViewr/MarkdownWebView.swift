@@ -72,21 +72,32 @@ struct MarkdownWebView: NSViewRepresentable {
 
         context.coordinator.lastHTML = html
         context.coordinator.lastCSS = themeCSS
+        #if MAS_BUILD
+        // Images are inlined as data: URLs; a base href to the (sandboxed) folder is
+        // both unreadable and unnecessary.
+        template = template.replacingOccurrences(of: "{{BASE_TAG}}", with: "")
+        #else
         if let fileDir = fileURL?.deletingLastPathComponent() {
             template = template.replacingOccurrences(of: "{{BASE_TAG}}", with: "<base href=\"\(fileDir.absoluteString)\">")
         } else {
             template = template.replacingOccurrences(of: "{{BASE_TAG}}", with: "")
         }
+        #endif
         template = template.replacingOccurrences(of: "{{THEME_CSS}}", with: themeCSS)
         template = template.replacingOccurrences(of: "{{CONTENT}}", with: html)
 
-        if let fileDir = fileURL?.deletingLastPathComponent() {
+        if fileURL != nil {
             let tempDir = Self.previewDirectory
             try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             let tempHTML = tempDir.appendingPathComponent(UUID().uuidString + ".html")
             try? template.write(to: tempHTML, atomically: true, encoding: .utf8)
+            #if MAS_BUILD
+            // Self-contained HTML (images inlined); only the container temp dir is needed.
+            webView.loadFileURL(tempHTML, allowingReadAccessTo: tempDir)
+            #else
             // Grant read access to "/" so both the temp file and the document's images are accessible
             webView.loadFileURL(tempHTML, allowingReadAccessTo: URL(fileURLWithPath: "/"))
+            #endif
             context.coordinator.tempFileURL = tempHTML
         } else {
             webView.loadHTMLString(template, baseURL: nil)
