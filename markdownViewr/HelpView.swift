@@ -31,7 +31,7 @@ struct HelpView: View {
     private func helpMarkdown(for topic: HelpTopic) -> String {
         switch topic {
         case .overview:
-            return """
+            var overview = """
             # Overview
 
             markdownViewr is a fast, view-only markdown file viewer for macOS. It renders \
@@ -51,8 +51,11 @@ struct HelpView: View {
             - Vim-style keyboard navigation
             - Find in document with match count
             - One-click open in any configured external editor
-            - Automatic updates via Sparkle
             """
+            #if !MAS_BUILD
+            overview += "\n- Automatic updates via Sparkle"
+            #endif
+            return overview
 
         case .openingFiles:
             return """

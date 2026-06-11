@@ -1,13 +1,17 @@
 import SwiftUI
+#if !MAS_BUILD
 import Sparkle
+#endif
 
 @main
 struct MarkdownViewrApp: App {
+    #if !MAS_BUILD
     private let updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
+    #endif
     @StateObject private var themeManager = ThemeManager()
     @StateObject private var editorManager = EditorManager()
 
@@ -23,12 +27,14 @@ struct MarkdownViewrApp: App {
         }
         .defaultSize(width: 700, height: 900)
         .commands {
+            #if !MAS_BUILD
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
                     updaterController.checkForUpdates(nil)
                 }
                 .disabled(!updaterController.updater.canCheckForUpdates)
             }
+            #endif
 
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
