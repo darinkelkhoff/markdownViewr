@@ -16,6 +16,26 @@ just kill         # force-kill running app
 
 After adding/removing Swift files or resources, run `xcodegen generate` before building.
 
+## Distribution
+
+The app ships through **two** channels from one codebase, distinguished by build configuration:
+
+| Channel | Configs | Signing | Updates | Recipe |
+|---|---|---|---|---|
+| **Developer ID** | `Debug`, `Release` | Developer ID | Sparkle + Homebrew cask | `just release` |
+| **Mac App Store** | `Debug-MAS`, `Release-MAS` | Apple Distribution | App Store | `just release-mas` |
+
+The MAS configs set `SWIFT_ACTIVE_COMPILATION_CONDITIONS: MAS_BUILD` and apply `markdownViewr/markdownViewr-MAS.entitlements` (sandbox + user-selected read-only + app-scope bookmarks + network client). The Developer ID build is unchanged at runtime — all sandbox behavior is gated behind `#if MAS_BUILD`.
+
+What `MAS_BUILD` changes:
+
+- **Sparkle compiled out** — `import Sparkle`, the `SPUStandardUpdaterController`, and the "Check for Updates…" menu command are all behind `#if !MAS_BUILD`. The `SUFeedURL`/`SUPublicEDKey` Info.plist keys live in `project.yml`'s `info.properties` (so the Developer ID build keeps them) and are deleted from the MAS bundle by the `Strip Sparkle keys from MAS bundle` post-build script keyed on `${CONFIGURATION}`. (`INFOPLIST_KEY_`-prefixed injection does NOT work for non-Apple custom keys — verified — hence the post-build strip.)
+- **Folder access** — `FolderAccessManager` resolves/persists an app-scoped security-scoped bookmark for the open document's folder. On first open of a new folder, `ContentView` shows a grant banner; the markdown text renders immediately regardless. The held bookmark powers both file-watching and image reads. Bookmarks are keyed by folder path in `UserDefaults` (`folderBookmark:<path>`).
+- **Image inlining** — `ContentView.rerender()` rewrites relative-local `<img>` tags to `data:` URLs via `ImageInliner`, reading bytes through the folder bookmark. This makes the preview HTML self-contained so `MarkdownWebView` only grants WKWebView read access to the container temp dir (not `/`). Remote images load via the network-client entitlement.
+- **External editors** — verified to work under sandbox via `NSWorkspace.open(_:withApplicationAt:)` with the stored path string; LaunchServices mediates the launch, so no per-editor bookmark is needed.
+
+**Remaining manual App Store Connect steps** (not automated): register the App ID and create Apple Distribution + Mac Installer Distribution certificates and a provisioning profile; create the app record; upload screenshots; write the App Privacy label (collects nothing) and export-compliance answer (no non-exempt crypto); submit for review.
+
 ## Architecture
 
 - **SwiftUI** app shell (toolbar, settings, window management)
@@ -38,6 +58,8 @@ After adding/removing Swift files or resources, run `xcodegen generate` before b
 | `ThemeEditorView.swift` | Theme creation/editing UI with live preview |
 | `SettingsView.swift` | General, Editors, Themes tabs + `ThemeEditorWindowController` |
 | `EditorConfig.swift` | External editor model + manager |
+| `ImageInliner.swift` | Rewrites relative-local `<img>` tags to `data:` URLs (MAS build only) |
+| `FolderAccessManager.swift` | Security-scoped folder access via app-scoped bookmarks (MAS build only) |
 | `FileWatcher.swift` | `DispatchSource` file system watcher |
 | `FindBarController.swift` | Find state + notification names |
 | `CSSHelpView.swift` | Shared CSS reference popover |
