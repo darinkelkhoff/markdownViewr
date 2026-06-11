@@ -30,6 +30,7 @@ struct ContentView: View {
     @StateObject private var findBar = FindBarController()
     @StateObject private var folderAccess = FolderAccessManager()
     @State private var renderedHTML = ""
+    @State private var docNeedsImageAccess = false
     @State private var tocVisible = false
     @State private var tocDepth = 3
 
@@ -38,25 +39,25 @@ struct ContentView: View {
     }
 
     private func rerender() {
-        var html = MarkdownDocument.convertToHTML(
+        let html = MarkdownDocument.convertToHTML(
             currentMarkdown,
             frontmatterMode: themeManager.frontmatterMode,
             extensions: themeManager.markdownExtensions
         )
         #if MAS_BUILD
         if folderAccess.hasAccess {
-            html = ImageInliner.inlineLocalImages(in: html) { path in
+            renderedHTML = ImageInliner.inlineLocalImages(in: html) { path in
                 folderAccess.imageData(forRelativePath: path)
             }
+            docNeedsImageAccess = false
+        } else {
+            renderedHTML = html
+            // Only prompt for folder access when the document actually has local images.
+            docNeedsImageAccess = ImageInliner.containsLocalImage(in: html)
         }
-        #endif
+        #else
         renderedHTML = html
-    }
-
-    private func beginLiveContent() {
-        guard let fileURL else { return }
-        rerender()
-        liveContent.startWatching(fileURL: fileURL)
+        #endif
     }
 
     var body: some View {
@@ -64,10 +65,10 @@ struct ContentView: View {
             if findBar.isVisible {
                 FindBarView(findBar: findBar)
             }
-            if !folderAccess.hasAccess, fileURL != nil {
+            if docNeedsImageAccess {
                 FolderAccessBanner {
                     folderAccess.requestAccess { granted in
-                        if granted { beginLiveContent() }
+                        if granted { rerender() }
                     }
                 }
             }
@@ -103,13 +104,13 @@ struct ContentView: View {
         })
         .onAppear {
             liveContent.rawMarkdown = document.rawMarkdown
-            rerender()
             if let fileURL {
+                // Watching the opened document does not require the folder grant —
+                // the document itself is accessible via the document architecture.
                 folderAccess.prepare(for: fileURL)
-                if folderAccess.hasAccess {
-                    beginLiveContent()
-                }
+                liveContent.startWatching(fileURL: fileURL)
             }
+            rerender()
         }
         .onDisappear {
             liveContent.fileWatcher = nil

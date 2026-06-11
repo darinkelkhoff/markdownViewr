@@ -31,6 +31,22 @@ final class ImageInlinerTests: XCTestCase {
         XCTAssertEqual(out, html)
     }
 
+    func testContainsLocalImageTrueForRelativeSrc() {
+        XCTAssertTrue(ImageInliner.containsLocalImage(in: "<img src=\"images/a.png\">"))
+    }
+
+    func testContainsLocalImageFalseForRemoteOnly() {
+        XCTAssertFalse(ImageInliner.containsLocalImage(in: "<img src=\"https://example.com/a.png\">"))
+    }
+
+    func testContainsLocalImageFalseForNoImages() {
+        XCTAssertFalse(ImageInliner.containsLocalImage(in: "<p>no images here</p>"))
+    }
+
+    func testContainsLocalImageFalseForAbsolutePath() {
+        XCTAssertFalse(ImageInliner.containsLocalImage(in: "<img src=\"/Users/x/a.png\">"))
+    }
+
     func testDecodesPercentEncodedPathBeforeResolving() {
         let html = "<img src=\"my%20pic.png\">"
         let bytes = Data([0xAA])

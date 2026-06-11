@@ -38,6 +38,21 @@ enum ImageInliner {
         return result
     }
 
+    /// True if the HTML contains at least one `<img>` whose `src` is a local relative path.
+    /// Used to decide whether folder access (and its grant prompt) is actually needed.
+    static func containsLocalImage(in html: String) -> Bool {
+        guard let regex = try? NSRegularExpression(
+            pattern: "<img[^>]*?src=\"([^\"]*)\"[^>]*>",
+            options: []
+        ) else { return false }
+        let ns = html as NSString
+        let matches = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
+        for match in matches where isLocalRelative(ns.substring(with: match.range(at: 1))) {
+            return true
+        }
+        return false
+    }
+
     static func isLocalRelative(_ src: String) -> Bool {
         if src.isEmpty { return false }
         if src.hasPrefix("data:") { return false }
