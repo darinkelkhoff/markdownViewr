@@ -6,6 +6,12 @@ options:
   xcodeVersion: "15.0"
   generateEmptyDirectories: true
 
+configs:
+  Debug: debug
+  Release: release
+  Debug-MAS: debug
+  Release-MAS: release
+
 packages:
   swift-markdown:
     url: https://github.com/apple/swift-markdown.git
@@ -44,11 +50,25 @@ targets:
       base:
         INFOPLIST_FILE: markdownViewr/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.dkelkhoff.markdownViewr
-        MARKETING_VERSION: "1.1.6"
+        MARKETING_VERSION: "1.2.0"
         CURRENT_PROJECT_VERSION: "3"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
-        ENABLE_APP_SANDBOX: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug-MAS:
+          CODE_SIGN_ENTITLEMENTS: markdownViewr/markdownViewr-MAS.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MAS_BUILD"
+        Release-MAS:
+          CODE_SIGN_ENTITLEMENTS: markdownViewr/markdownViewr-MAS.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MAS_BUILD"
+    postBuildScripts:
+      - name: Strip Sparkle keys from MAS bundle
+        script: |
+          if [[ "${CONFIGURATION}" == *MAS* ]]; then
+            PLIST="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+            /usr/libexec/PlistBuddy -c "Delete :SUFeedURL" "$PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Delete :SUPublicEDKey" "$PLIST" 2>/dev/null || true
+          fi
     info:
       path: markdownViewr/Info.plist
       properties:
