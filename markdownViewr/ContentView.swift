@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var missingEditorName = ""
     @StateObject private var liveContent = LiveContent()
     @StateObject private var findBar = FindBarController()
+    @StateObject private var folderAccess = FolderAccessManager()
     @State private var renderedHTML = ""
     @State private var tocVisible = false
     @State private var tocDepth = 3
@@ -37,17 +38,38 @@ struct ContentView: View {
     }
 
     private func rerender() {
-        renderedHTML = MarkdownDocument.convertToHTML(
+        var html = MarkdownDocument.convertToHTML(
             currentMarkdown,
             frontmatterMode: themeManager.frontmatterMode,
             extensions: themeManager.markdownExtensions
         )
+        #if MAS_BUILD
+        if folderAccess.hasAccess {
+            html = ImageInliner.inlineLocalImages(in: html) { path in
+                folderAccess.imageData(forRelativePath: path)
+            }
+        }
+        #endif
+        renderedHTML = html
+    }
+
+    private func beginLiveContent() {
+        guard let fileURL else { return }
+        rerender()
+        liveContent.startWatching(fileURL: fileURL)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             if findBar.isVisible {
                 FindBarView(findBar: findBar)
+            }
+            if !folderAccess.hasAccess, fileURL != nil {
+                FolderAccessBanner {
+                    folderAccess.requestAccess { granted in
+                        if granted { beginLiveContent() }
+                    }
+                }
             }
             MarkdownWebView(
                 html: renderedHTML,
@@ -83,7 +105,10 @@ struct ContentView: View {
             liveContent.rawMarkdown = document.rawMarkdown
             rerender()
             if let fileURL {
-                liveContent.startWatching(fileURL: fileURL)
+                folderAccess.prepare(for: fileURL)
+                if folderAccess.hasAccess {
+                    beginLiveContent()
+                }
             }
         }
         .onDisappear {
@@ -229,6 +254,23 @@ struct ContentView: View {
         }
 
         editorManager.openFile(fileURL, with: editor)
+    }
+}
+
+private struct FolderAccessBanner: View {
+    let onGrant: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "photo.on.rectangle.angled")
+            Text("Allow access to this file's folder to show images and auto-reload on changes.")
+                .font(.callout)
+            Spacer()
+            Button("Allow Access…", action: onGrant)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.yellow.opacity(0.18))
     }
 }
 
