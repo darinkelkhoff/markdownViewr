@@ -138,3 +138,39 @@ release: kill
     echo ""
     echo "Done! https://github.com/darinkelkhoff/markdownViewr/releases/tag/v$VERSION"
     echo "      brew install --cask darinkelkhoff/tap/markdownviewr"
+
+# Archive and export a signed App Store .pkg (then upload via Transporter or altool)
+release-mas: kill
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VERSION=$(grep 'MARKETING_VERSION' project.yml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    MAJOR=$(echo "$VERSION" | cut -d. -f1)
+    MINOR=$(echo "$VERSION" | cut -d. -f2)
+    PATCH=$(echo "$VERSION" | cut -d. -f3)
+    BUILD_NUMBER=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+    echo "==> Regenerating Xcode project..."
+    xcodegen generate
+    ARCHIVE="/tmp/markdownViewr-mas.xcarchive"
+    EXPORT="/tmp/markdownViewr-mas-export"
+    rm -rf "$ARCHIVE" "$EXPORT"
+    echo "==> Archiving v$VERSION (build $BUILD_NUMBER) for the App Store..."
+    xcodebuild archive \
+        -project markdownViewr.xcodeproj \
+        -scheme markdownViewr \
+        -configuration Release-MAS \
+        -archivePath "$ARCHIVE" \
+        -destination 'generic/platform=macOS' \
+        CURRENT_PROJECT_VERSION="$BUILD_NUMBER" | xcpretty || true
+    echo "==> Exporting App Store package..."
+    xcodebuild -exportArchive \
+        -archivePath "$ARCHIVE" \
+        -exportPath "$EXPORT" \
+        -exportOptionsPlist ExportOptions-MAS.plist
+    PKG=$(find "$EXPORT" -name '*.pkg' | head -1)
+    echo ""
+    echo "Done! Signed App Store package:"
+    echo "  $PKG"
+    echo ""
+    echo "Upload with Transporter.app, or:"
+    echo "  xcrun altool --upload-app -f \"$PKG\" -t macos \\"
+    echo "    --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>"
