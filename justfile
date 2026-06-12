@@ -19,7 +19,7 @@ open file: build
 
 # Run the test suite
 test:
-    xcodebuild test -project markdownViewr.xcodeproj -scheme markdownViewrTests -destination 'platform=macOS'
+    xcodebuild test -project markdownViewr.xcodeproj -scheme markdownViewr -destination 'platform=macOS'
 
 # Update the Homebrew cask to match the current release (run after a successful just release)
 update-cask:
@@ -156,8 +156,8 @@ release-mas: kill
     echo "==> Archiving v$VERSION (build $BUILD_NUMBER) for the App Store..."
     xcodebuild archive \
         -project markdownViewr.xcodeproj \
-        -scheme markdownViewr \
-        -configuration Release-MAS \
+        -scheme markdownViewr-MAS \
+        -configuration Release \
         -archivePath "$ARCHIVE" \
         -destination 'generic/platform=macOS' \
         -allowProvisioningUpdates \

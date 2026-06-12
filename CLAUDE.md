@@ -18,18 +18,20 @@ After adding/removing Swift files or resources, run `xcodegen generate` before b
 
 ## Distribution
 
-The app ships through **two** channels from one codebase, distinguished by build configuration:
+The app ships through **two** channels from one codebase, built from **two application targets** that share a `targetTemplates: AppBase` (sources, resources, swift-markdown, version, bundle id):
 
-| Channel | Configs | Signing | Updates | Recipe |
-|---|---|---|---|---|
-| **Developer ID** | `Debug`, `Release` | Developer ID | Sparkle + Homebrew cask | `just release` |
-| **Mac App Store** | `Debug-MAS`, `Release-MAS` | Apple Distribution | App Store | `just release-mas` |
+| Channel | Target | Scheme | Signing | Updates | Recipe |
+|---|---|---|---|---|---|
+| **Developer ID** | `markdownViewr` | `markdownViewr` | Developer ID | Sparkle + Homebrew cask | `just release` |
+| **Mac App Store** | `markdownViewr-MAS` | `markdownViewr-MAS` | Apple Distribution | App Store | `just release-mas` |
 
-The MAS configs set `SWIFT_ACTIVE_COMPILATION_CONDITIONS: MAS_BUILD` and apply `markdownViewr/markdownViewr-MAS.entitlements` (sandbox + user-selected read-only + app-scope bookmarks + network client). The Developer ID build is unchanged at runtime — all sandbox behavior is gated behind `#if MAS_BUILD`.
+Both targets use the standard `Debug`/`Release` configs (no special `-MAS` configs). They differ ONLY in three things: the `markdownViewr` target depends on the `sparkle` package and the `markdownViewr-MAS` target does not; the MAS target sets `SWIFT_ACTIVE_COMPILATION_CONDITIONS: MAS_BUILD` and applies `markdownViewr/markdownViewr-MAS.entitlements` (sandbox + user-selected read-only + app-scope bookmarks + network client). The Developer ID build is unchanged at runtime — all sandbox behavior is gated behind `#if MAS_BUILD`.
 
-What `MAS_BUILD` changes:
+**Why two targets, not one target with two configs:** SwiftPM **auto-links a declared package-product dependency regardless of whether the source imports it**, so `#if !MAS_BUILD` around `import Sparkle` removes Sparkle *usage* but not the *link/embed*. A single target therefore always embeds `Sparkle.framework`, whose non-sandboxable helper executables (Autoupdate, Updater.app, the XPC services) make the App Store reject the build (error 90296). The framework can't be stripped post-build either — the binary links it, so removal causes a dyld launch crash. The only fix is a separate target that doesn't depend on Sparkle at all. (Both targets output `markdownViewr.app` to the same `Build/Products/Release/` in shared DerivedData, so alternating local builds overwrite each other — harmless, since the release recipes archive to their own paths.)
 
-- **Sparkle compiled out** — `import Sparkle`, the `SPUStandardUpdaterController`, and the "Check for Updates…" menu command are all behind `#if !MAS_BUILD`. The `SUFeedURL`/`SUPublicEDKey` Info.plist keys live in `project.yml`'s `info.properties` (so the Developer ID build keeps them) and are deleted from the MAS bundle by the `Strip Sparkle keys from MAS bundle` post-build script keyed on `${CONFIGURATION}`. (`INFOPLIST_KEY_`-prefixed injection does NOT work for non-Apple custom keys — verified — hence the post-build strip.)
+What `MAS_BUILD` / the MAS target changes:
+
+- **No Sparkle** — the MAS target omits the `sparkle` dependency (so nothing is linked or embedded), and `import Sparkle`, `SPUStandardUpdaterController`, and the "Check for Updates…" command are behind `#if !MAS_BUILD` (so the MAS target compiles without the Sparkle module). The `SUFeedURL`/`SUPublicEDKey` Info.plist keys live in the `markdownViewr` target's `info.properties` (so the Developer ID build keeps them); the MAS target reuses that generated `Info.plist` and deletes those two keys in its unconditional `Strip Sparkle keys from MAS Info.plist` post-build script. (`INFOPLIST_KEY_`-prefixed injection does NOT work for non-Apple custom keys — verified — hence the post-build strip.)
 - **Folder access** — `FolderAccessManager` resolves/persists an app-scoped security-scoped bookmark for the open document's folder, used only to read sibling images. The grant banner is shown **only when the document actually references local images** (`ImageInliner.containsLocalImage`) and access isn't held yet — image-less docs (the common case) never prompt. Bookmarks are keyed by folder path in `UserDefaults` (`folderBookmark:<path>`).
 - **File watching is decoupled from the grant** — `ContentView` starts the `FileWatcher` unconditionally on open. The opened document is accessible via the document architecture, so live-reload works for every doc with no prompt; the folder bookmark is needed only for sibling images.
 - **Image inlining** — `ContentView.rerender()` rewrites relative-local `<img>` tags to `data:` URLs via `ImageInliner`, reading bytes through the folder bookmark. This makes the preview HTML self-contained so `MarkdownWebView` only grants WKWebView read access to the container temp dir (not `/`). Remote images load via the network-client entitlement.
