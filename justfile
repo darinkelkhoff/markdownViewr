@@ -175,9 +175,9 @@ release-mas: kill
     echo ""
     echo "Upload it with: just upload-mas"
 
-# Validate and upload the exported App Store .pkg to App Store Connect.
 # Key ID is read from the AuthKey_<id>.p8 filename in ~/.appstoreconnect/private_keys/;
 # issuer id from ~/.appstoreconnect/issuer_id (or the ASC_ISSUER_ID env var).
+# Validate and upload the exported App Store .pkg to App Store Connect
 upload-mas:
     #!/usr/bin/env bash
     set -euo pipefail
