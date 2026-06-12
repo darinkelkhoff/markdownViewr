@@ -57,7 +57,10 @@ try:
         if asv:
             a = inc.get((asv["type"], asv["id"]), {}).get("attributes", {})
             att = f"attached to {a.get('versionString')} [{a.get('appStoreState')}]"
+        enc = at.get('usesNonExemptEncryption')
+        comp = {None: "NOT ANSWERED", True: "uses non-exempt encryption", False: "exempt (answered)"}.get(enc, enc)
         print(f"  build {at.get('version')}  train {train}  state={at.get('processingState')}  ({att})")
+        print(f"     export compliance: {comp}")
 
     print("\n=== App Store versions ===")
     v = get(f"https://api.appstoreconnect.apple.com/v1/apps/{app_id}/appStoreVersions?limit=10")
