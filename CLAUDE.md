@@ -46,6 +46,16 @@ What `MAS_BUILD` changes:
 - HTML rendered in a template (`Resources/template.html`) with CSS variable-based theming
 - Settings and Theme Editor use custom `NSWindow` controllers (not SwiftUI `Settings` scene) because SwiftUI's Settings scene doesn't support resizing
 
+## Portability (Apple platforms)
+
+The app can grow to iOS/iPadOS/visionOS without a rewrite, provided one boundary stays clean: the render/model core must stay free of AppKit.
+
+- **Portable core (pure Swift / web — reuse as-is):** markdown→HTML (`MarkdownDocument`, swift-markdown), `ImageInliner`, `Theme`/`ThemeManager`, and the entire render layer (`Resources/template.html`, CSS, JS). Keep `NS*`/AppKit types out of these files.
+- **Platform layer (macOS-bound — needs per-platform twins):** `MarkdownWebView` (`NSViewRepresentable` → `UIViewRepresentable`; WKWebView itself exists on iOS), `SettingsWindowController`/`HelpWindowController` (`NSWindow` → sheets/navigation), `FolderAccessManager` (`NSOpenPanel` → `UIDocumentPickerViewController`), `EditorManager`/`EditorConfig` (`NSWorkspace` external-editor launch — no iOS equivalent), `WindowResizer`/`WindowAccessor`.
+- `DocumentGroup` (app entry) is already cross-platform. The MAS sandboxing also moves macOS toward the always-sandboxed iOS model (security-scoped access instead of broad file reads), so it helps rather than hinders an iOS port.
+
+Don't build cross-platform abstractions speculatively — just keep the render/model code AppKit-free until a second platform is actually on the table.
+
 ## Key Files
 
 | File | Purpose |
