@@ -194,3 +194,7 @@ upload-mas:
     echo "==> Uploading..."
     xcrun altool --upload-app -f "$PKG" -t macos --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
     echo "Done! Watch App Store Connect -> your app -> Build for processing (a few minutes)."
+
+# Show App Store Connect build + version processing state (uses the same API key)
+asc-builds:
+    python3 scripts/asc-builds.py
