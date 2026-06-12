@@ -160,12 +160,14 @@ release-mas: kill
         -configuration Release-MAS \
         -archivePath "$ARCHIVE" \
         -destination 'generic/platform=macOS' \
+        -allowProvisioningUpdates \
         CURRENT_PROJECT_VERSION="$BUILD_NUMBER" | xcpretty || true
     echo "==> Exporting App Store package..."
     xcodebuild -exportArchive \
         -archivePath "$ARCHIVE" \
         -exportPath "$EXPORT" \
-        -exportOptionsPlist ExportOptions-MAS.plist
+        -exportOptionsPlist ExportOptions-MAS.plist \
+        -allowProvisioningUpdates
     PKG=$(find "$EXPORT" -name '*.pkg' | head -1)
     echo ""
     echo "Done! Signed App Store package:"
