@@ -173,6 +173,24 @@ release-mas: kill
     echo "Done! Signed App Store package:"
     echo "  $PKG"
     echo ""
-    echo "Upload with Transporter.app, or:"
-    echo "  xcrun altool --upload-app -f \"$PKG\" -t macos \\"
-    echo "    --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>"
+    echo "Upload it with: just upload-mas"
+
+# Validate and upload the exported App Store .pkg to App Store Connect.
+# Key ID is read from the AuthKey_<id>.p8 filename in ~/.appstoreconnect/private_keys/;
+# issuer id from ~/.appstoreconnect/issuer_id (or the ASC_ISSUER_ID env var).
+upload-mas:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    KEYS_DIR="$HOME/.appstoreconnect/private_keys"
+    KEY_FILE=$(ls "$KEYS_DIR"/AuthKey_*.p8 2>/dev/null | head -1)
+    [[ -n "$KEY_FILE" ]] || { echo "No AuthKey_*.p8 in $KEYS_DIR"; exit 1; }
+    KEY_ID=$(basename "$KEY_FILE" .p8); KEY_ID=${KEY_ID#AuthKey_}
+    ISSUER_ID="${ASC_ISSUER_ID:-$(cat "$HOME/.appstoreconnect/issuer_id" 2>/dev/null || true)}"
+    [[ -n "$ISSUER_ID" ]] || { echo "Set ASC_ISSUER_ID or write it to ~/.appstoreconnect/issuer_id"; exit 1; }
+    PKG="/tmp/markdownViewr-mas-export/markdownViewr.pkg"
+    [[ -f "$PKG" ]] || { echo "No package at $PKG — run 'just release-mas' first."; exit 1; }
+    echo "==> Validating (key $KEY_ID)..."
+    xcrun altool --validate-app -f "$PKG" -t macos --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+    echo "==> Uploading..."
+    xcrun altool --upload-app -f "$PKG" -t macos --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+    echo "Done! Watch App Store Connect -> your app -> Build for processing (a few minutes)."
