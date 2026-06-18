@@ -92,8 +92,21 @@ class ThemeManager: ObservableObject {
     func loadThemes() {
         let deleted = deletedBuiltIns
         var combined: [Theme] = []
-        combined.append(contentsOf: loadBuiltInThemes().filter { !deleted.contains($0.name) })
-        combined.append(contentsOf: loadUserThemes())
+        let builtIns = loadBuiltInThemes()
+        let builtInNames = Set(builtIns.map(\.name))
+        var userThemes = loadUserThemes()
+        // A user theme sharing a built-in's name is an edit of that built-in (editing
+        // one in place saves a same-named user file). Keep the user's copy so edits
+        // persist, but mark it built-in so the UI still treats it as one, and drop the
+        // now-shadowed bundled copy.
+        for i in userThemes.indices where builtInNames.contains(userThemes[i].name) {
+            userThemes[i].isBuiltIn = true
+        }
+        let overriddenNames = Set(userThemes.map(\.name))
+        combined.append(contentsOf: builtIns.filter {
+            !deleted.contains($0.name) && !overriddenNames.contains($0.name)
+        })
+        combined.append(contentsOf: userThemes)
 
         let order = themeOrder
         if !order.isEmpty {
@@ -314,15 +327,17 @@ class ThemeManager: ObservableObject {
     }
 
     func deleteTheme(_ theme: Theme) throws {
+        // Remove any user file/override regardless of built-in status (an edited
+        // built-in has both a bundled copy and a user override file).
+        let userFile = Self.userThemesDirectory.appendingPathComponent(Self.userThemeFilename(for: theme.name))
+        if FileManager.default.fileExists(atPath: userFile.path) {
+            try FileManager.default.removeItem(at: userFile)
+        }
+        // Hide the bundled built-in (restorable later via "Restore Built-ins").
         if theme.isBuiltIn {
             var deleted = deletedBuiltIns
             deleted.insert(theme.name)
             deletedBuiltIns = deleted
-        } else {
-            let userFile = Self.userThemesDirectory.appendingPathComponent(Self.userThemeFilename(for: theme.name))
-            if FileManager.default.fileExists(atPath: userFile.path) {
-                try FileManager.default.removeItem(at: userFile)
-            }
         }
 
         disabledThemes.remove(theme.name)
