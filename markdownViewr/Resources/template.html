@@ -52,7 +52,7 @@ body {
     transition: none;
 }
 
-#toc-resizer {
+.resizer {
     position: sticky;
     top: 0;
     align-self: flex-start;
@@ -64,11 +64,11 @@ body {
     display: none;
 }
 
-#toc-resizer.visible {
+.resizer.visible {
     display: block;
 }
 
-#toc-resizer::before {
+.resizer::before {
     content: "";
     position: absolute;
     left: 3px;
@@ -78,10 +78,47 @@ body {
     background: color-mix(in srgb, var(--text) 10%, transparent);
 }
 
-#toc-resizer:hover::before,
-#toc-resizer.dragging::before {
+.resizer:hover::before,
+.resizer.dragging::before {
     width: 2px;
     background: color-mix(in srgb, var(--link) 45%, transparent);
+}
+
+#raw-source {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    flex: 0 0 auto;
+    width: 0;
+    max-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    opacity: 0;
+    transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+#raw-source.visible {
+    opacity: 1;
+}
+
+#raw-source.no-transition {
+    transition: none;
+}
+
+#raw-source pre {
+    margin: 0;
+    padding: 32px 20px;
+    font-family: var(--code-font);
+    font-size: var(--code-font-size);
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    tab-size: 4;
+}
+
+#raw-source .raw-ellipsis {
+    display: none;
+    opacity: 0.4;
 }
 
 #toc ul {
@@ -260,6 +297,15 @@ li {
     margin-bottom: 4px;
 }
 
+li.task-list-item {
+    list-style: none;
+}
+
+li.task-list-item > input[type="checkbox"] {
+    margin: 0 0.4em 0.15em -1.4em;
+    vertical-align: middle;
+}
+
 li > ul, li > ol {
     margin-top: 4px;
     margin-bottom: 4px;
@@ -338,10 +384,12 @@ mark {
 </head>
 <body>
 <nav id="toc" class="no-transition"></nav>
-<div id="toc-resizer"></div>
+<div id="toc-resizer" class="resizer"></div>
 <div id="content">
 {{CONTENT}}
 </div>
+<div id="raw-resizer" class="resizer"></div>
+<div id="raw-source" class="no-transition"><pre><code></code></pre></div>
 <script>
 function updateThemeCSS(css) {
     document.getElementById('theme-css').textContent = css;
@@ -355,17 +403,32 @@ function updateContent(html) {
     document.documentElement.scrollTop = scrollRatio * newMax;
     setupCollapsibleHeadings();
     if (_tocVisible) buildTOC();
+    _rebuildSyncAnchors();
 }
 
-var _findMatches = [];
+var _findPairs = [];
 var _findIndex = -1;
+var _allFindMarks = [];
 
-function findAll(query) {
-    clearFind();
-    if (!query) return JSON.stringify({current: 0, total: 0});
+function _findStatus() {
+    return JSON.stringify({ current: _findIndex + 1, total: _findPairs.length });
+}
 
-    var content = document.getElementById('content');
-    var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+function _styleMark(mark, active) {
+    if (active) {
+        mark.style.background = 'color-mix(in srgb, var(--text) 40%, transparent)';
+        mark.style.outline = '2px solid color-mix(in srgb, var(--link) 60%, transparent)';
+    } else {
+        mark.style.background = 'color-mix(in srgb, var(--text) 25%, transparent)';
+        mark.style.outline = 'none';
+    }
+}
+
+// Wrap every occurrence of query within root in a <mark>; returns the marks in order.
+function _markMatchesIn(root, query) {
+    var marks = [];
+    if (!root) return marks;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
     var textNodes = [];
     var node;
     while (node = walker.nextNode()) textNodes.push(node);
@@ -373,8 +436,7 @@ function findAll(query) {
     var lowerQuery = query.toLowerCase();
     for (var i = 0; i < textNodes.length; i++) {
         var n = textNodes[i];
-        var text = n.textContent;
-        var lower = text.toLowerCase();
+        var lower = n.textContent.toLowerCase();
         var idx = 0;
         while ((idx = lower.indexOf(lowerQuery, idx)) !== -1) {
             var range = document.createRange();
@@ -382,66 +444,100 @@ function findAll(query) {
             range.setEnd(n, idx + query.length);
             var mark = document.createElement('mark');
             mark.className = 'find-match';
-            mark.style.background = 'color-mix(in srgb, var(--text) 25%, transparent)';
             mark.style.color = 'inherit';
             mark.style.borderRadius = '2px';
             range.surroundContents(mark);
-            _findMatches.push(mark);
-            // After surroundContents, the text node is split; re-walk from mark's next sibling
+            _styleMark(mark, false);
+            marks.push(mark);
+            _allFindMarks.push(mark);
             n = mark.nextSibling;
             if (!n) break;
             lower = n.textContent.toLowerCase();
             idx = 0;
         }
     }
+    return marks;
+}
 
-    if (_findMatches.length > 0) {
+function findAll(query) {
+    clearFind();
+    if (!query) return _findStatus();
+
+    var contentMarks = _markMatchesIn(document.getElementById('content'), query);
+    var rawMarks = _rawVisible ? _markMatchesIn(document.getElementById('raw-source'), query) : [];
+
+    // Pair the k-th rendered hit with the k-th source hit so next/prev moves both panes.
+    var n = Math.max(contentMarks.length, rawMarks.length);
+    for (var k = 0; k < n; k++) {
+        _findPairs.push({ c: contentMarks[k] || null, r: rawMarks[k] || null });
+    }
+
+    if (_findPairs.length > 0) {
         _findIndex = 0;
         highlightCurrent();
     }
-    return JSON.stringify({current: _findIndex + 1, total: _findMatches.length});
+    return _findStatus();
 }
 
 function findNext() {
-    if (_findMatches.length === 0) return JSON.stringify({current: 0, total: 0});
+    if (_findPairs.length === 0) return _findStatus();
     unhighlightCurrent();
-    _findIndex = (_findIndex + 1) % _findMatches.length;
+    _findIndex = (_findIndex + 1) % _findPairs.length;
     highlightCurrent();
-    return JSON.stringify({current: _findIndex + 1, total: _findMatches.length});
+    return _findStatus();
 }
 
 function findPrev() {
-    if (_findMatches.length === 0) return JSON.stringify({current: 0, total: 0});
+    if (_findPairs.length === 0) return _findStatus();
     unhighlightCurrent();
-    _findIndex = (_findIndex - 1 + _findMatches.length) % _findMatches.length;
+    _findIndex = (_findIndex - 1 + _findPairs.length) % _findPairs.length;
     highlightCurrent();
-    return JSON.stringify({current: _findIndex + 1, total: _findMatches.length});
+    return _findStatus();
 }
 
 function highlightCurrent() {
-    if (_findIndex >= 0 && _findIndex < _findMatches.length) {
-        _findMatches[_findIndex].style.background = 'color-mix(in srgb, var(--text) 40%, transparent)';
-        _findMatches[_findIndex].style.outline = '2px solid color-mix(in srgb, var(--link) 60%, transparent)';
-        _findMatches[_findIndex].scrollIntoView({block: 'center', behavior: 'smooth'});
+    var pair = _findPairs[_findIndex];
+    if (!pair) return;
+    // Pause scroll-sync so find's explicit dual-scroll isn't overridden.
+    _findScrolling = true;
+    clearTimeout(_findScrollTimer);
+    _findScrollTimer = setTimeout(function() { _findScrolling = false; }, 600);
+    if (pair.c) {
+        _styleMark(pair.c, true);
+        pair.c.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    if (pair.r) {
+        _styleMark(pair.r, true);
+        _scrollRawCenter(pair.r);
     }
 }
 
 function unhighlightCurrent() {
-    if (_findIndex >= 0 && _findIndex < _findMatches.length) {
-        _findMatches[_findIndex].style.background = 'color-mix(in srgb, var(--text) 25%, transparent)';
-        _findMatches[_findIndex].style.outline = 'none';
-    }
+    var pair = _findPairs[_findIndex];
+    if (!pair) return;
+    if (pair.c) _styleMark(pair.c, false);
+    if (pair.r) _styleMark(pair.r, false);
+}
+
+// Scroll only the raw pane (not the window) to center a mark within it.
+function _scrollRawCenter(mark) {
+    var raw = document.getElementById('raw-source');
+    if (!raw) return;
+    var top = mark.getBoundingClientRect().top - raw.getBoundingClientRect().top + raw.scrollTop;
+    raw.scrollTo({ top: top - raw.clientHeight / 2, behavior: 'smooth' });
 }
 
 function clearFind() {
-    for (var i = 0; i < _findMatches.length; i++) {
-        var mark = _findMatches[i];
+    for (var i = 0; i < _allFindMarks.length; i++) {
+        var mark = _allFindMarks[i];
         var parent = mark.parentNode;
+        if (!parent) continue;
         while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
         parent.removeChild(mark);
         parent.normalize();
     }
-    _findMatches = [];
+    _allFindMarks = [];
+    _findPairs = [];
     _findIndex = -1;
 }
 
@@ -466,6 +562,11 @@ function setupCollapsibleHeadings() {
 
 function toggleCollapse(e) {
     var h = e.currentTarget;
+    if (e.altKey) {
+        // Option-click: anchor/jump to this header (both panes follow via scroll-sync).
+        h.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        return;
+    }
     var level = headingLevel(h);
     var collapsed = h.classList.toggle('collapsed');
     var sibling = h.nextElementSibling;
@@ -499,6 +600,7 @@ function toggleCollapse(e) {
         }
         sibling = sibling.nextElementSibling;
     }
+    applyRawCollapse();
 }
 
 var _tocMaxDepth = 3;
@@ -506,6 +608,18 @@ var _tocVisible = false;
 var _tocWidth = 220;
 var _tocWrap = false;
 var _tocBullets = false;
+var _rawVisible = false;
+var _rawWidth = 400;
+var _syncContentHeadings = [];
+var _syncRawHeadings = [];
+var _suppressContentSync = false;
+var _suppressRawSync = false;
+var _supContentTimer = null;
+var _supRawTimer = null;
+var _findScrolling = false;
+var _findScrollTimer = null;
+var _syncRafC = null;
+var _syncRafR = null;
 
 function buildTOC() {
     var toc = document.getElementById('toc');
@@ -573,6 +687,8 @@ function setTOCVisible(visible) {
 function enableTOCTransitions() {
     requestAnimationFrame(function() {
         document.getElementById('toc').classList.remove('no-transition');
+        var raw = document.getElementById('raw-source');
+        if (raw) raw.classList.remove('no-transition');
     });
 }
 
@@ -597,6 +713,217 @@ function setTOCBullets(on) {
     var toc = document.getElementById('toc');
     if (on) toc.classList.add('bullets'); else toc.classList.remove('bullets');
 }
+
+function setRawVisible(visible) {
+    _rawVisible = visible;
+    var raw = document.getElementById('raw-source');
+    var resizer = document.getElementById('raw-resizer');
+    if (visible) {
+        raw.classList.add('visible');
+        raw.style.width = _rawWidth + 'px';
+        if (resizer) resizer.classList.add('visible');
+        _rebuildSyncAnchors();
+        applyRawCollapse();
+        syncRawFromContent();
+    } else {
+        raw.classList.remove('visible');
+        raw.style.width = '0px';
+        // Keep the divider through the collapse animation, then hide it.
+        if (resizer) {
+            setTimeout(function() {
+                if (!_rawVisible) resizer.classList.remove('visible');
+            }, 300);
+        }
+    }
+}
+
+function setRawSource(text) {
+    var code = document.querySelector('#raw-source code');
+    if (!code) return;
+    code.textContent = '';
+    var lines = text.split('\n');
+    var inFence = false, fenceChar = '', fenceLen = 0;
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var stripped = line.replace(/^[ \t]+/, '');
+        var fm = stripped.match(/^(`{3,}|~{3,})/);
+        var hl = 0;
+        if (!inFence && fm) {
+            inFence = true; fenceChar = fm[1].charAt(0); fenceLen = fm[1].length;
+        } else if (inFence && fm && fm[1].charAt(0) === fenceChar && fm[1].length >= fenceLen && stripped.slice(fm[1].length).trim() === '') {
+            inFence = false;
+        } else if (!inFence) {
+            var hm = stripped.match(/^(#{1,6})\s/);
+            if (hm) hl = hm[1].length;
+        }
+        var span = document.createElement('span');
+        span.className = hl ? 'raw-line raw-h' : 'raw-line';
+        if (hl) span.setAttribute('data-level', hl);
+        span.textContent = line + (i < lines.length - 1 ? '\n' : '');
+        code.appendChild(span);
+        if (hl) {
+            var ell = document.createElement('span');
+            ell.className = 'raw-ellipsis';
+            ell.textContent = '⋯\n';
+            code.appendChild(ell);
+        }
+    }
+    _rebuildSyncAnchors();
+    applyRawCollapse();
+}
+
+// Mirror the rendered collapse state into the source pane: hide each collapsed
+// section's body lines and reveal its ellipsis placeholder.
+function applyRawCollapse() {
+    var code = document.querySelector('#raw-source code');
+    if (!code) return;
+    var lines = code.querySelectorAll('.raw-line');
+    var headingIdx = -1;
+    var hideUntil = 0;
+    for (var i = 0; i < lines.length; i++) {
+        var el = lines[i];
+        var isHeading = el.classList.contains('raw-h');
+        var ellipsis = (isHeading && el.nextElementSibling && el.nextElementSibling.classList.contains('raw-ellipsis'))
+            ? el.nextElementSibling : null;
+        if (isHeading) {
+            headingIdx++;
+            var level = parseInt(el.getAttribute('data-level'), 10) || 1;
+            if (hideUntil > 0 && level <= hideUntil) hideUntil = 0;
+            if (hideUntil > 0) {
+                el.style.display = 'none';
+                if (ellipsis) ellipsis.style.display = 'none';
+            } else {
+                el.style.display = '';
+                var rendered = _syncContentHeadings[headingIdx];
+                if (rendered && rendered.classList.contains('collapsed')) {
+                    if (ellipsis) ellipsis.style.display = 'inline';
+                    hideUntil = level;
+                } else if (ellipsis) {
+                    ellipsis.style.display = 'none';
+                }
+            }
+        } else {
+            el.style.display = (hideUntil > 0) ? 'none' : '';
+        }
+    }
+}
+
+function setRawWidth(px) {
+    // Cap at the viewport minus a reserve so the rendered pane never fully disappears.
+    var maxW = Math.max(220, document.documentElement.clientWidth - 200);
+    _rawWidth = Math.max(220, Math.min(maxW, px));
+    if (_rawVisible) document.getElementById('raw-source').style.width = _rawWidth + 'px';
+}
+
+// Drag-to-resize the raw-source pane (anchored to the right edge).
+(function() {
+    var resizer = document.getElementById('raw-resizer');
+    var raw = document.getElementById('raw-source');
+    if (!resizer || !raw) return;
+    var dragging = false;
+    resizer.addEventListener('mousedown', function(e) {
+        dragging = true;
+        resizer.classList.add('dragging');
+        raw.classList.add('no-transition');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        setRawWidth(document.documentElement.clientWidth - e.clientX);
+    });
+    document.addEventListener('mouseup', function() {
+        if (!dragging) return;
+        dragging = false;
+        resizer.classList.remove('dragging');
+        raw.classList.remove('no-transition');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.rawWidth) {
+            window.webkit.messageHandlers.rawWidth.postMessage(_rawWidth);
+        }
+    });
+})();
+
+// ---- Header-anchored scroll-sync between the rendered view and the raw pane ----
+
+function _rebuildSyncAnchors() {
+    _syncContentHeadings = Array.prototype.slice.call(
+        document.querySelectorAll('#content h1, #content h2, #content h3, #content h4, #content h5, #content h6'));
+    _syncRawHeadings = Array.prototype.slice.call(
+        document.querySelectorAll('#raw-source .raw-h'));
+}
+
+function syncRawFromContent() {
+    if (!_rawVisible || _findScrolling) return;
+    var ch = _syncContentHeadings, rh = _syncRawHeadings;
+    var n = Math.min(ch.length, rh.length);
+    if (n === 0) return;
+    var raw = document.getElementById('raw-source');
+    var rawTopVp = raw.getBoundingClientRect().top, rawScroll = raw.scrollTop;
+    var y = window.scrollY || document.documentElement.scrollTop;
+    function cTop(i) { return ch[i].getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop); }
+    function rTop(i) { return rh[i].getBoundingClientRect().top - rawTopVp + rawScroll; }
+    var k = -1;
+    for (var i = 0; i < n; i++) { if (cTop(i) <= y + 4) k = i; else break; }
+    var target;
+    if (k < 0) target = 0;
+    else if (k >= n - 1) target = rTop(k);
+    else {
+        var c0 = cTop(k), c1 = cTop(k + 1);
+        var frac = (y - c0) / Math.max(1, c1 - c0);
+        target = rTop(k) + frac * (rTop(k + 1) - rTop(k));
+    }
+    _suppressRawSync = true;
+    clearTimeout(_supRawTimer);
+    _supRawTimer = setTimeout(function() { _suppressRawSync = false; }, 120);
+    raw.scrollTop = target;
+}
+
+function syncContentFromRaw() {
+    if (!_rawVisible || _findScrolling) return;
+    var ch = _syncContentHeadings, rh = _syncRawHeadings;
+    var n = Math.min(ch.length, rh.length);
+    if (n === 0) return;
+    var raw = document.getElementById('raw-source');
+    var rawTopVp = raw.getBoundingClientRect().top, rawScroll = raw.scrollTop;
+    var ry = rawScroll;
+    function cTop(i) { return ch[i].getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop); }
+    function rTop(i) { return rh[i].getBoundingClientRect().top - rawTopVp + rawScroll; }
+    var k = -1;
+    for (var i = 0; i < n; i++) { if (rTop(i) <= ry + 4) k = i; else break; }
+    var target;
+    if (k < 0) target = 0;
+    else if (k >= n - 1) target = cTop(k);
+    else {
+        var r0 = rTop(k), r1 = rTop(k + 1);
+        var frac = (ry - r0) / Math.max(1, r1 - r0);
+        target = cTop(k) + frac * (cTop(k + 1) - cTop(k));
+    }
+    _suppressContentSync = true;
+    clearTimeout(_supContentTimer);
+    _supContentTimer = setTimeout(function() { _suppressContentSync = false; }, 120);
+    window.scrollTo(0, target);
+}
+
+window.addEventListener('scroll', function() {
+    if (!_rawVisible || _findScrolling) return;
+    if (_suppressContentSync) { _suppressContentSync = false; return; }
+    if (_syncRafC) return;
+    _syncRafC = requestAnimationFrame(function() { _syncRafC = null; syncRawFromContent(); });
+});
+
+(function() {
+    var raw = document.getElementById('raw-source');
+    if (!raw) return;
+    raw.addEventListener('scroll', function() {
+        if (!_rawVisible || _findScrolling) return;
+        if (_suppressRawSync) { _suppressRawSync = false; return; }
+        if (_syncRafR) return;
+        _syncRafR = requestAnimationFrame(function() { _syncRafR = null; syncContentFromRaw(); });
+    });
+})();
 
 // Drag-to-resize the TOC; reports the final width back to the app to persist.
 (function() {

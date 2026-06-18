@@ -36,6 +36,8 @@ struct ContentView: View {
     @AppStorage("tocWidth") private var tocWidth: Double = 220
     @AppStorage("tocWrap") private var tocWrap = false
     @AppStorage("tocBullets") private var tocBullets = false
+    @AppStorage("rawVisible") private var rawVisible = false
+    @AppStorage("rawWidth") private var rawWidth: Double = 400
 
     private var currentMarkdown: String {
         liveContent.rawMarkdown.isEmpty ? document.rawMarkdown : liveContent.rawMarkdown
@@ -85,7 +87,11 @@ struct ContentView: View {
                 tocWidth: tocWidth,
                 tocWrap: tocWrap,
                 tocBullets: tocBullets,
-                onTocWidthChange: { tocWidth = $0 }
+                rawSource: currentMarkdown,
+                rawVisible: rawVisible,
+                rawWidth: rawWidth,
+                onTocWidthChange: { tocWidth = $0 },
+                onRawWidthChange: { rawWidth = $0 }
             )
         }
         .onReceive(themeManager.$frontmatterMode) { _ in
@@ -125,6 +131,7 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
                 tocControls
+                rawButton
                 zoomControls
                 palettePicker
                 editorButton
@@ -161,6 +168,15 @@ struct ContentView: View {
             .disabled(!tocVisible)
             .help("Table of Contents depth")
         }
+    }
+
+    private var rawButton: some View {
+        Button {
+            rawVisible.toggle()
+        } label: {
+            Image(systemName: rawVisible ? "doc.plaintext.fill" : "doc.plaintext")
+        }
+        .help(rawVisible ? "Hide Markdown Source" : "Show Markdown Source")
     }
 
     private var zoomControls: some View {

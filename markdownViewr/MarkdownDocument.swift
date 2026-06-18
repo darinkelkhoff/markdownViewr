@@ -320,7 +320,12 @@ private struct HTMLConverter: MarkupWalker {
         case let list as UnorderedList:
             result += "<ul>\n"
             for item in list.listItems {
-                result += "<li>"
+                if let checkbox = item.checkbox {
+                    let checked = checkbox == .checked ? " checked" : ""
+                    result += "<li class=\"task-list-item\"><input type=\"checkbox\" disabled\(checked)> "
+                } else {
+                    result += "<li>"
+                }
                 for child in item.children {
                     if child is Paragraph {
                         for inline in child.children {

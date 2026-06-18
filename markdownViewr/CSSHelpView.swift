@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CSSHelpView: View {
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 12) {
             Text("CSS Reference")
                 .font(.headline)
@@ -30,6 +31,32 @@ struct CSSHelpView: View {
                 Text("Fenced code blocks get a language class:")
                     .font(.caption)
                 codeBlock("pre code.language-swift { ... }")
+            }
+
+            Group {
+                Text("Source Pane")
+                    .font(.subheadline).bold()
+                Text("The Markdown source view (toolbar toggle):")
+                    .font(.caption)
+                codeBlock("""
+                #raw-source              (the pane)
+                #raw-source pre, code    (the text)
+                #raw-source .raw-h       (heading lines)
+                #raw-source .raw-ellipsis (collapsed marker)
+                #toc-resizer, #raw-resizer (dividers)
+                """)
+            }
+
+            Group {
+                Text("Table of Contents")
+                    .font(.subheadline).bold()
+                codeBlock("""
+                #toc                   (the panel)
+                #toc a                 (entries)
+                #toc a.active          (current entry)
+                #toc .toc-h1 .. .toc-h6 (by level)
+                #toc.bullets .toc-h2::before (markers)
+                """)
             }
 
             Group {
@@ -64,12 +91,23 @@ struct CSSHelpView: View {
 
                 /* Rounded images */
                 img { border-radius: 12px; }
+
+                /* Color the Markdown source pane */
+                #raw-source { background: var(--code-bg); }
+                #raw-source pre { color: var(--code-text); }
+                #raw-source .raw-h { color: var(--h2); }
+
+                /* Style the table of contents */
+                #toc a.active { color: var(--h1); }
+                #toc { background: var(--code-bg); }
                 """)
             }
         }
         .font(.caption)
+        .textSelection(.enabled)
         .padding(16)
-        .frame(width: 320)
+        }
+        .frame(width: 360, height: 520)
     }
 
     private func codeBlock(_ code: String) -> some View {
