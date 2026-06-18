@@ -31,8 +31,9 @@ struct ContentView: View {
     @StateObject private var folderAccess = FolderAccessManager()
     @State private var renderedHTML = ""
     @State private var docNeedsImageAccess = false
-    @State private var tocVisible = false
-    @State private var tocDepth = 3
+    @AppStorage("tocVisible") private var tocVisible = false
+    @AppStorage("tocDepth") private var tocDepth = 3
+    @AppStorage("tocWidth") private var tocWidth: Double = 220
 
     private var currentMarkdown: String {
         liveContent.rawMarkdown.isEmpty ? document.rawMarkdown : liveContent.rawMarkdown
@@ -78,7 +79,9 @@ struct ContentView: View {
                 fileURL: fileURL,
                 findBar: findBar,
                 tocVisible: tocVisible,
-                tocDepth: tocDepth
+                tocDepth: tocDepth,
+                tocWidth: tocWidth,
+                onTocWidthChange: { tocWidth = $0 }
             )
         }
         .onReceive(themeManager.$frontmatterMode) { _ in

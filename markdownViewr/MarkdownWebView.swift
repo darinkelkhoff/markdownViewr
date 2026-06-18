@@ -9,6 +9,8 @@ struct MarkdownWebView: NSViewRepresentable {
     var findBar: FindBarController?
     var tocVisible: Bool = false
     var tocDepth: Int = 3
+    var tocWidth: Double = 220
+    var onTocWidthChange: ((Double) -> Void)?
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -16,7 +18,9 @@ struct MarkdownWebView: NSViewRepresentable {
 
         let userContent = WKUserContentController()
         userContent.add(context.coordinator, name: "vim")
+        userContent.add(context.coordinator, name: "tocWidth")
         config.userContentController = userContent
+        context.coordinator.onTocWidthChange = onTocWidthChange
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
@@ -27,6 +31,7 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.onTocWidthChange = onTocWidthChange
         if context.coordinator.lastHTML != html {
             let previousHTML = context.coordinator.lastHTML
             context.coordinator.lastHTML = html
@@ -49,6 +54,10 @@ struct MarkdownWebView: NSViewRepresentable {
         if context.coordinator.lastTocDepth != tocDepth {
             context.coordinator.lastTocDepth = tocDepth
             webView.evaluateJavaScript("setTOCDepth(\(tocDepth))") { _, _ in }
+        }
+        if context.coordinator.lastTocWidth != tocWidth {
+            context.coordinator.lastTocWidth = tocWidth
+            webView.evaluateJavaScript("setTOCWidth(\(tocWidth))") { _, _ in }
         }
     }
 
@@ -106,6 +115,7 @@ struct MarkdownWebView: NSViewRepresentable {
         // Queue TOC state to apply after page loads
         context.coordinator.pendingTocVisible = tocVisible
         context.coordinator.pendingTocDepth = tocDepth
+        context.coordinator.pendingTocWidth = tocWidth
     }
 
     private func updateContent(in webView: WKWebView) {
@@ -139,8 +149,11 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastCSS: String = ""
         var lastTocVisible: Bool = false
         var lastTocDepth: Int = 3
+        var lastTocWidth: Double = 220
         var pendingTocVisible: Bool?
         var pendingTocDepth: Int?
+        var pendingTocWidth: Double?
+        var onTocWidthChange: ((Double) -> Void)?
         var tempFileURL: URL?
         private var findBarObservation: Any?
         private var lastSearchText: String = ""
@@ -238,6 +251,14 @@ struct MarkdownWebView: NSViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
+            if message.name == "tocWidth" {
+                guard let width = (message.body as? NSNumber)?.doubleValue else { return }
+                lastTocWidth = width
+                DispatchQueue.main.async { [weak self] in
+                    self?.onTocWidthChange?(width)
+                }
+                return
+            }
             guard message.name == "vim", let action = message.body as? String else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -251,6 +272,11 @@ struct MarkdownWebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if let width = pendingTocWidth {
+                lastTocWidth = width
+                webView.evaluateJavaScript("setTOCWidth(\(width))") { _, _ in }
+                pendingTocWidth = nil
+            }
             if let visible = pendingTocVisible {
                 lastTocVisible = visible
                 webView.evaluateJavaScript("setTOCVisible(\(visible))") { _, _ in }
