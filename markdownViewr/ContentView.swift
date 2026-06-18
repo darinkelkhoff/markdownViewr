@@ -34,6 +34,8 @@ struct ContentView: View {
     @AppStorage("tocVisible") private var tocVisible = false
     @AppStorage("tocDepth") private var tocDepth = 3
     @AppStorage("tocWidth") private var tocWidth: Double = 220
+    @AppStorage("tocWrap") private var tocWrap = false
+    @AppStorage("tocBullets") private var tocBullets = false
 
     private var currentMarkdown: String {
         liveContent.rawMarkdown.isEmpty ? document.rawMarkdown : liveContent.rawMarkdown
@@ -81,6 +83,8 @@ struct ContentView: View {
                 tocVisible: tocVisible,
                 tocDepth: tocDepth,
                 tocWidth: tocWidth,
+                tocWrap: tocWrap,
+                tocBullets: tocBullets,
                 onTocWidthChange: { tocWidth = $0 }
             )
         }

@@ -30,6 +30,8 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
+    @AppStorage("tocWrap") private var tocWrap = false
+    @AppStorage("tocBullets") private var tocBullets = false
     @State private var isDefault = false
     @State private var checkPerformed = false
     @State private var showCSSHelp = false
@@ -103,6 +105,28 @@ struct GeneralSettingsView: View {
                         }
                     }
                 }
+                .padding(4)
+            }
+            .padding(.top, 12)
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle("Wrap long entries in the Table of Contents", isOn: $tocWrap)
+                            .toggleStyle(.checkbox)
+                        Text("When off, long headings are truncated with an ellipsis — hover an entry to see its full text.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle("Show depth markers in the Table of Contents", isOn: $tocBullets)
+                            .toggleStyle(.checkbox)
+                        Text("Marks each entry with a shape that varies by heading level (●, ○, ▪, –) to show depth.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(4)
             }
             .padding(.top, 12)

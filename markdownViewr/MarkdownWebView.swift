@@ -10,6 +10,8 @@ struct MarkdownWebView: NSViewRepresentable {
     var tocVisible: Bool = false
     var tocDepth: Int = 3
     var tocWidth: Double = 220
+    var tocWrap: Bool = false
+    var tocBullets: Bool = false
     var onTocWidthChange: ((Double) -> Void)?
 
     func makeNSView(context: Context) -> WKWebView {
@@ -58,6 +60,14 @@ struct MarkdownWebView: NSViewRepresentable {
         if context.coordinator.lastTocWidth != tocWidth {
             context.coordinator.lastTocWidth = tocWidth
             webView.evaluateJavaScript("setTOCWidth(\(tocWidth))") { _, _ in }
+        }
+        if context.coordinator.lastTocWrap != tocWrap {
+            context.coordinator.lastTocWrap = tocWrap
+            webView.evaluateJavaScript("setTOCWrap(\(tocWrap))") { _, _ in }
+        }
+        if context.coordinator.lastTocBullets != tocBullets {
+            context.coordinator.lastTocBullets = tocBullets
+            webView.evaluateJavaScript("setTOCBullets(\(tocBullets))") { _, _ in }
         }
     }
 
@@ -116,6 +126,8 @@ struct MarkdownWebView: NSViewRepresentable {
         context.coordinator.pendingTocVisible = tocVisible
         context.coordinator.pendingTocDepth = tocDepth
         context.coordinator.pendingTocWidth = tocWidth
+        context.coordinator.pendingTocWrap = tocWrap
+        context.coordinator.pendingTocBullets = tocBullets
     }
 
     private func updateContent(in webView: WKWebView) {
@@ -150,9 +162,13 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastTocVisible: Bool = false
         var lastTocDepth: Int = 3
         var lastTocWidth: Double = 220
+        var lastTocWrap: Bool = false
+        var lastTocBullets: Bool = false
         var pendingTocVisible: Bool?
         var pendingTocDepth: Int?
         var pendingTocWidth: Double?
+        var pendingTocWrap: Bool?
+        var pendingTocBullets: Bool?
         var onTocWidthChange: ((Double) -> Void)?
         var tempFileURL: URL?
         private var findBarObservation: Any?
@@ -277,6 +293,16 @@ struct MarkdownWebView: NSViewRepresentable {
                 webView.evaluateJavaScript("setTOCWidth(\(width))") { _, _ in }
                 pendingTocWidth = nil
             }
+            if let wrap = pendingTocWrap {
+                lastTocWrap = wrap
+                webView.evaluateJavaScript("setTOCWrap(\(wrap))") { _, _ in }
+                pendingTocWrap = nil
+            }
+            if let bullets = pendingTocBullets {
+                lastTocBullets = bullets
+                webView.evaluateJavaScript("setTOCBullets(\(bullets))") { _, _ in }
+                pendingTocBullets = nil
+            }
             if let visible = pendingTocVisible {
                 lastTocVisible = visible
                 webView.evaluateJavaScript("setTOCVisible(\(visible))") { _, _ in }
@@ -287,6 +313,8 @@ struct MarkdownWebView: NSViewRepresentable {
                 webView.evaluateJavaScript("setTOCDepth(\(depth))") { _, _ in }
                 pendingTocDepth = nil
             }
+            // Initial TOC state is set; re-enable transitions so toggles animate.
+            webView.evaluateJavaScript("enableTOCTransitions()") { _, _ in }
         }
     }
 }

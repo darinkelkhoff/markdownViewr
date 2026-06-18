@@ -33,17 +33,23 @@ body {
     top: 0;
     align-self: flex-start;
     flex: 0 0 auto;
-    width: 220px;
+    width: 0;
     max-height: 100vh;
+    overflow-x: hidden;
     overflow-y: auto;
-    padding: 24px 12px 24px 16px;
-    border-right: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    padding: 24px 0;
     font-size: 1em;
-    display: none;
+    opacity: 0;
+    transition: width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
 }
 
 #toc.visible {
-    display: block;
+    padding: 24px 12px 24px 16px;
+    opacity: 1;
+}
+
+#toc.no-transition {
+    transition: none;
 }
 
 #toc-resizer {
@@ -62,9 +68,20 @@ body {
     display: block;
 }
 
-#toc-resizer:hover,
-#toc-resizer.dragging {
-    background: color-mix(in srgb, var(--link) 35%, transparent);
+#toc-resizer::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+#toc-resizer:hover::before,
+#toc-resizer.dragging::before {
+    width: 2px;
+    background: color-mix(in srgb, var(--link) 45%, transparent);
 }
 
 #toc ul {
@@ -85,7 +102,43 @@ body {
     padding: 2px 4px;
     border-radius: 4px;
     line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+
+#toc.wrap a {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+#toc.bullets a::before {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 1.8em;
+    margin-right: 1px;
+    font-size: 0.5em;
+    line-height: 1;
+    vertical-align: middle;
+    position: relative;
+    top: -0.15em;
+    text-align: center;
+    opacity: 0.6;
+    -webkit-text-stroke: 0.4px currentColor;
+}
+
+/* When wrapping is on, hang-indent wrapped lines so text aligns past the marker. */
+#toc.wrap.bullets a {
+    display: flex;
+    align-items: baseline;
+}
+#toc.bullets .toc-h1::before { content: "\25CF"; } /* ● filled circle */
+#toc.bullets .toc-h2::before { content: "\25CB"; } /* ○ hollow circle */
+#toc.bullets .toc-h3::before { content: "\25C6"; } /* ◆ filled diamond */
+#toc.bullets .toc-h4::before { content: "\25C7"; } /* ◇ hollow diamond */
+#toc.bullets .toc-h5::before { content: "\25A0"; } /* ■ filled square */
+#toc.bullets .toc-h6::before { content: "\25A1"; } /* □ hollow square */
 
 #toc a:hover {
     opacity: 1;
@@ -284,7 +337,7 @@ mark {
 </style>
 </head>
 <body>
-<nav id="toc"></nav>
+<nav id="toc" class="no-transition"></nav>
 <div id="toc-resizer"></div>
 <div id="content">
 {{CONTENT}}
@@ -451,6 +504,8 @@ function toggleCollapse(e) {
 var _tocMaxDepth = 3;
 var _tocVisible = false;
 var _tocWidth = 220;
+var _tocWrap = false;
+var _tocBullets = false;
 
 function buildTOC() {
     var toc = document.getElementById('toc');
@@ -496,14 +551,29 @@ function setTOCVisible(visible) {
     var toc = document.getElementById('toc');
     var resizer = document.getElementById('toc-resizer');
     if (visible) {
-        toc.classList.add('visible');
-        if (resizer) resizer.classList.add('visible');
         buildTOC();
         setupTOCScrollHighlight();
+        toc.classList.add('visible');
+        toc.style.width = _tocWidth + 'px';
+        if (resizer) resizer.classList.add('visible');
     } else {
         toc.classList.remove('visible');
-        if (resizer) resizer.classList.remove('visible');
+        toc.style.width = '0px';
+        // Keep the divider through the collapse animation, then hide it.
+        if (resizer) {
+            setTimeout(function() {
+                if (!_tocVisible) resizer.classList.remove('visible');
+            }, 300);
+        }
     }
+}
+
+// Removes the no-transition guard after initial state is applied, so the first
+// document render doesn't animate but later toggles do.
+function enableTOCTransitions() {
+    requestAnimationFrame(function() {
+        document.getElementById('toc').classList.remove('no-transition');
+    });
 }
 
 function setTOCDepth(depth) {
@@ -513,7 +583,19 @@ function setTOCDepth(depth) {
 
 function setTOCWidth(px) {
     _tocWidth = Math.max(150, Math.min(500, px));
-    document.getElementById('toc').style.width = _tocWidth + 'px';
+    if (_tocVisible) document.getElementById('toc').style.width = _tocWidth + 'px';
+}
+
+function setTOCWrap(wrap) {
+    _tocWrap = wrap;
+    var toc = document.getElementById('toc');
+    if (wrap) toc.classList.add('wrap'); else toc.classList.remove('wrap');
+}
+
+function setTOCBullets(on) {
+    _tocBullets = on;
+    var toc = document.getElementById('toc');
+    if (on) toc.classList.add('bullets'); else toc.classList.remove('bullets');
 }
 
 // Drag-to-resize the TOC; reports the final width back to the app to persist.
@@ -525,6 +607,7 @@ function setTOCWidth(px) {
     resizer.addEventListener('mousedown', function(e) {
         dragging = true;
         resizer.classList.add('dragging');
+        toc.classList.add('no-transition');
         document.body.style.userSelect = 'none';
         document.body.style.cursor = 'col-resize';
         e.preventDefault();
@@ -537,6 +620,7 @@ function setTOCWidth(px) {
         if (!dragging) return;
         dragging = false;
         resizer.classList.remove('dragging');
+        toc.classList.remove('no-transition');
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tocWidth) {
