@@ -25,6 +25,9 @@ brew install --cask darinkelkhoff/tap/markdownviewr
 - **GitHub Flavored Markdown** — tables, task lists, strikethrough, fenced code blocks
 - **Themed code blocks** — monospaced, with configurable code font and size
 - **Fully customizable themes** — built-in theme editor, unlimited user themes, custom CSS
+- **Table of contents** — toggleable, resizable, depth picker, depth markers, jump-to-heading
+- **Markdown source view** — side-by-side raw source, find across both panes, heading scroll-sync, collapse mirroring
+- **Collapsible headings** — click a heading to collapse its section, ⌥-click to anchor to it
 - **Live file watching** — re-renders on every save, scroll position preserved
 - **Vim navigation keys** — `j`/`k`, `Ctrl+d`/`u`, `gg`/`G`, `]]`/`[[`
 - **Find in document** — with match count and vim-style `/`, `n`, `N`
