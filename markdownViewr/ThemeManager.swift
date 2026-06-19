@@ -406,7 +406,7 @@ class ThemeManager: ObservableObject {
         }
 
         if contentWidthEnabled {
-            css += "\n\n#content { max-width: calc(\(Int(contentWidthPx))px * var(--zoom)); margin: auto; }"
+            css += "\n\n#content-inner { max-width: calc(\(Int(contentWidthPx))px * var(--zoom)); margin: auto; }"
         }
 
         return css

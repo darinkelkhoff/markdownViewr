@@ -11,8 +11,32 @@
     box-sizing: border-box;
 }
 
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text) 30%, var(--bg));
+    border: 3px solid var(--bg);
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text) 45%, var(--bg));
+}
+
+::-webkit-scrollbar-corner {
+    background: var(--bg);
+}
+
 html {
     height: 100%;
+    overflow: hidden;
 }
 
 body {
@@ -25,7 +49,8 @@ body {
     -webkit-font-smoothing: antialiased;
     display: flex;
     align-items: flex-start;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 
 #toc {
@@ -114,6 +139,7 @@ body {
     white-space: pre-wrap;
     word-break: break-word;
     tab-size: 4;
+    border-radius: 0;
 }
 
 #raw-source .raw-ellipsis {
@@ -197,7 +223,12 @@ body {
 #content {
     flex: 1;
     min-width: 0;
-    min-height: 100vh;
+    height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+#content-inner {
     padding: 32px 48px;
 }
 
@@ -386,21 +417,32 @@ mark {
 <nav id="toc" class="no-transition"></nav>
 <div id="toc-resizer" class="resizer"></div>
 <div id="content">
+<div id="content-inner">
 {{CONTENT}}
+</div>
 </div>
 <div id="raw-resizer" class="resizer"></div>
 <div id="raw-source" class="no-transition"><pre><code></code></pre></div>
 <script>
+function _contentScroller() {
+    return document.getElementById('content');
+}
+
+function _contentContainer() {
+    return document.getElementById('content-inner');
+}
+
 function updateThemeCSS(css) {
     document.getElementById('theme-css').textContent = css;
 }
 
 function updateContent(html) {
-    var scrollRatio = document.documentElement.scrollTop /
-        Math.max(1, document.documentElement.scrollHeight - document.documentElement.clientHeight);
-    document.getElementById('content').innerHTML = html;
-    var newMax = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-    document.documentElement.scrollTop = scrollRatio * newMax;
+    var content = _contentScroller();
+    var scrollRatio = content.scrollTop /
+        Math.max(1, content.scrollHeight - content.clientHeight);
+    _contentContainer().innerHTML = html;
+    var newMax = content.scrollHeight - content.clientHeight;
+    content.scrollTop = scrollRatio * newMax;
     setupCollapsibleHeadings();
     if (_tocVisible) buildTOC();
     _rebuildSyncAnchors();
@@ -860,10 +902,12 @@ function syncRawFromContent() {
     var ch = _syncContentHeadings, rh = _syncRawHeadings;
     var n = Math.min(ch.length, rh.length);
     if (n === 0) return;
+    var content = _contentScroller();
+    var contentTopVp = content.getBoundingClientRect().top, contentScroll = content.scrollTop;
     var raw = document.getElementById('raw-source');
     var rawTopVp = raw.getBoundingClientRect().top, rawScroll = raw.scrollTop;
-    var y = window.scrollY || document.documentElement.scrollTop;
-    function cTop(i) { return ch[i].getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop); }
+    var y = contentScroll;
+    function cTop(i) { return ch[i].getBoundingClientRect().top - contentTopVp + contentScroll; }
     function rTop(i) { return rh[i].getBoundingClientRect().top - rawTopVp + rawScroll; }
     var k = -1;
     for (var i = 0; i < n; i++) { if (cTop(i) <= y + 4) k = i; else break; }
@@ -886,10 +930,12 @@ function syncContentFromRaw() {
     var ch = _syncContentHeadings, rh = _syncRawHeadings;
     var n = Math.min(ch.length, rh.length);
     if (n === 0) return;
+    var content = _contentScroller();
+    var contentTopVp = content.getBoundingClientRect().top, contentScroll = content.scrollTop;
     var raw = document.getElementById('raw-source');
     var rawTopVp = raw.getBoundingClientRect().top, rawScroll = raw.scrollTop;
     var ry = rawScroll;
-    function cTop(i) { return ch[i].getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop); }
+    function cTop(i) { return ch[i].getBoundingClientRect().top - contentTopVp + contentScroll; }
     function rTop(i) { return rh[i].getBoundingClientRect().top - rawTopVp + rawScroll; }
     var k = -1;
     for (var i = 0; i < n; i++) { if (rTop(i) <= ry + 4) k = i; else break; }
@@ -904,10 +950,11 @@ function syncContentFromRaw() {
     _suppressContentSync = true;
     clearTimeout(_supContentTimer);
     _supContentTimer = setTimeout(function() { _suppressContentSync = false; }, 120);
-    window.scrollTo(0, target);
+    content.scrollTop = target;
 }
 
-window.addEventListener('scroll', function() {
+var content = _contentScroller();
+content.addEventListener('scroll', function() {
     if (!_rawVisible || _findScrolling) return;
     if (_suppressContentSync) { _suppressContentSync = false; return; }
     if (_syncRafC) return;
@@ -959,28 +1006,60 @@ window.addEventListener('scroll', function() {
 function setupTOCScrollHighlight() {
     // Debounced scroll handler to highlight active TOC entry
     var timeout;
-    window.addEventListener('scroll', function() {
+    var content = _contentScroller();
+    content.addEventListener('scroll', function() {
         clearTimeout(timeout);
         timeout = setTimeout(highlightActiveTOC, 50);
     });
+}
+
+function _scrollTOCLinkIntoView(link) {
+    var toc = document.getElementById('toc');
+    var tocFollowPadding = 24;
+    var linkRect = link.getBoundingClientRect();
+    var tocRect = toc.getBoundingClientRect();
+    var activeTop = linkRect.top;
+    var activeBottom = linkRect.bottom;
+    var tocTop = tocRect.top;
+    var tocBottom = tocRect.bottom;
+    var targetScrollTop = toc.scrollTop;
+
+    if (activeTop < tocTop + tocFollowPadding) {
+        targetScrollTop = toc.scrollTop + activeTop - tocTop - tocFollowPadding;
+    } else if (activeBottom > tocBottom - tocFollowPadding) {
+        targetScrollTop = toc.scrollTop + activeBottom - tocBottom + tocFollowPadding;
+    } else {
+        return;
+    }
+
+    targetScrollTop = Math.max(0, Math.min(targetScrollTop, toc.scrollHeight - toc.clientHeight));
+    toc.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
 }
 
 function highlightActiveTOC() {
     var toc = document.getElementById('toc');
     if (!toc.classList.contains('visible')) return;
 
+    var content = _contentScroller();
     var links = toc.querySelectorAll('a');
-    var scrollTop = window.scrollY || document.documentElement.scrollTop;
+    var scrollTop = content.scrollTop;
+    var contentTopVp = content.getBoundingClientRect().top;
     var activeLink = null;
 
     for (var i = 0; i < links.length; i++) {
         var target = document.getElementById(links[i].dataset.headingId);
-        if (target && target.offsetTop <= scrollTop + 60) {
+        var targetTop = target
+            ? target.getBoundingClientRect().top - contentTopVp + scrollTop
+            : Infinity;
+        if (targetTop <= scrollTop + 60) {
             activeLink = links[i];
         }
         links[i].classList.remove('active');
     }
-    if (activeLink) activeLink.classList.add('active');
+    if (activeLink) {
+        activeLink.classList.add('active');
+        _scrollTOCLinkIntoView(activeLink);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1018,7 +1097,8 @@ function _vimJumpHeading(dir) {
     for (var i = 0; i < all.length; i++) {
         if (all[i].offsetParent !== null) visible.push(all[i]);
     }
-    var y = window.scrollY;
+    var content = _contentScroller();
+    var y = content.scrollTop;
     var threshold = 2;
     var target = null;
     if (dir > 0) {
@@ -1049,7 +1129,7 @@ window.addEventListener('keydown', function(e) {
 
     if (_vimPending === 'g' && key === 'g' && !ctrl) {
         _vimClearPending();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        _contentScroller().scrollTo({ top: 0, behavior: 'smooth' });
         e.preventDefault();
         return;
     }
@@ -1068,25 +1148,27 @@ window.addEventListener('keydown', function(e) {
     if (_vimPending) _vimClearPending();
 
     if (ctrl) {
-        var vh = window.innerHeight;
-        if (key === 'd') { window.scrollBy({ top: vh / 2, behavior: 'smooth' }); e.preventDefault(); return; }
-        if (key === 'u') { window.scrollBy({ top: -vh / 2, behavior: 'smooth' }); e.preventDefault(); return; }
-        if (key === 'f') { window.scrollBy({ top: vh, behavior: 'smooth' }); e.preventDefault(); return; }
-        if (key === 'b') { window.scrollBy({ top: -vh, behavior: 'smooth' }); e.preventDefault(); return; }
+        var content = _contentScroller();
+        var vh = content.clientHeight;
+        if (key === 'd') { content.scrollBy({ top: vh / 2, behavior: 'smooth' }); e.preventDefault(); return; }
+        if (key === 'u') { content.scrollBy({ top: -vh / 2, behavior: 'smooth' }); e.preventDefault(); return; }
+        if (key === 'f') { content.scrollBy({ top: vh, behavior: 'smooth' }); e.preventDefault(); return; }
+        if (key === 'b') { content.scrollBy({ top: -vh, behavior: 'smooth' }); e.preventDefault(); return; }
         return;
     }
 
     switch (key) {
         case 'j':
-            window.scrollBy({ top: _vimLineHeight(), behavior: 'smooth' });
+            _contentScroller().scrollBy({ top: _vimLineHeight(), behavior: 'smooth' });
             e.preventDefault();
             break;
         case 'k':
-            window.scrollBy({ top: -_vimLineHeight(), behavior: 'smooth' });
+            _contentScroller().scrollBy({ top: -_vimLineHeight(), behavior: 'smooth' });
             e.preventDefault();
             break;
         case 'G':
-            window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+            var content = _contentScroller();
+            content.scrollTo({ top: content.scrollHeight, behavior: 'smooth' });
             e.preventDefault();
             break;
         case 'g':

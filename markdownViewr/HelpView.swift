@@ -4,9 +4,13 @@ import WebKit
 private enum HelpTopic: String, CaseIterable, Identifiable {
     case overview       = "Overview"
     case openingFiles   = "Opening Files"
+    case headings       = "Headings"
+    case tableOfContents = "Table of Contents"
+    case sourceView     = "Source View"
     case frontmatter    = "Frontmatter"
     case extensions     = "Markdown Extensions"
     case themes         = "Themes"
+    case customCSS      = "Custom CSS"
     case editors        = "External Editors"
     case shortcuts      = "Keyboard Shortcuts"
 
@@ -47,6 +51,9 @@ struct HelpView: View {
             - Optional extensions: highlight, superscript, subscript, underline
             - YAML frontmatter support: hide it, show it as a metadata table, or render it as Markdown
             - Fully customizable themes with a built-in theme editor and custom CSS
+            - Resizable table of contents with depth markers
+            - Side-by-side Markdown source view, synced to the rendered document
+            - Collapsible outline: click a heading to collapse its section, ⌥-click to anchor to it
             - Max content width setting to keep line lengths readable on wide monitors
             - Vim-style keyboard navigation
             - Find in document with match count
@@ -83,6 +90,72 @@ struct HelpView: View {
             When an open file is modified on disk by another app (your editor, a script, \
             etc.), markdownViewr detects the change and re-renders automatically. Scroll \
             position is preserved across reloads.
+            """
+
+        case .headings:
+            return """
+            # Headings
+
+            Headings in the rendered document are interactive:
+
+            - **Click** a heading to collapse or expand its section. Collapsing also \
+            collapses the matching section in the source view (if open), leaving a ⋯ \
+            placeholder.
+            - **⌥-click** (Option-click) a heading to anchor it to the top of the view; \
+            the table of contents and source view follow along.
+
+            You can also jump between headings with `]]` / `[[` (see Keyboard Shortcuts), \
+            or click an entry in the table of contents.
+            """
+
+        case .tableOfContents:
+            return """
+            # Table of Contents
+
+            Toggle the table of contents with the list button in the toolbar. It lists \
+            the document's headings and highlights the section you're currently reading. \
+            Click an entry to jump to that heading.
+
+            ## Controls
+
+            - **Show / hide** — the list-bullet button in the toolbar.
+            - **Depth** — the H1–H6 picker in the toolbar controls how many heading levels to include.
+            - **Resize** — drag the divider on the panel's right edge. The width is \
+            remembered across documents and launches.
+
+            ## Display options (Settings > General)
+
+            - **Wrap long entries** — off by default; long headings are truncated with an \
+            ellipsis (hover an entry to see its full text).
+            - **Depth markers** — prefix each entry with a shape that varies by heading \
+            level (●, ○, ◆, ◇, ■, □) so the outline depth is easy to scan.
+            """
+
+        case .sourceView:
+            return """
+            # Source View
+
+            Toggle the raw Markdown source with the document button in the toolbar to show \
+            it in a pane beside the rendered view.
+
+            ## Behavior
+
+            - **Resize** — drag the divider on the pane's left edge; the width is remembered.
+            - **Find** — ⌘F searches both panes at once, and Next / Previous move the \
+            rendered and source views together to the same match.
+            - **Scroll-sync** — scrolling either pane keeps the other aligned to the same \
+            heading.
+            - **Collapsing** — collapsing a section in the rendered view also collapses it \
+            in the source, leaving a ⋯ placeholder.
+
+            The source pane is read-only — markdownViewr is a viewer, not an editor. To \
+            edit, use **Open in external editor**.
+
+            ## Customizing
+
+            The source pane and table of contents can be restyled with custom CSS \
+            (Settings > General > Global Custom CSS, or a theme's Custom CSS). See the CSS \
+            reference — the **?** button — for selectors such as `#raw-source` and `#toc`.
             """
 
         case .frontmatter:
@@ -218,7 +291,9 @@ struct HelpView: View {
             ## Custom CSS
 
             Custom CSS is the escape hatch for anything the theme editor doesn't expose. \
-            It targets the same HTML the renderer produces, so standard CSS selectors work:
+            It targets the same HTML the renderer produces, so standard CSS selectors work. \
+            Open the CSS Reference from the Custom CSS editor for a deeper selector guide, \
+            including document layout, source pane, table of contents, and scrollbar selectors.
 
             ```css
             /* Wider line spacing */
@@ -229,7 +304,17 @@ struct HelpView: View {
 
             /* Larger code font */
             code { font-size: 0.95em; }
+
+            /* Softer scrollbar thumbs */
+            ::-webkit-scrollbar-thumb {
+                background: color-mix(in srgb, var(--text) 30%, var(--bg));
+            }
             ```
+
+            Useful targets include `#content-inner` for the rendered document body, \
+            `#raw-source` for the source pane, `#toc` for the table of contents, and \
+            `#content::-webkit-scrollbar-thumb` / `#raw-source::-webkit-scrollbar-thumb` \
+            for pane-specific scrollbars.
 
             ## Max Content Width
 
@@ -245,6 +330,93 @@ struct HelpView: View {
             User themes are stored as JSON files in \
             `~/Library/Application Support/markdownViewr/themes/`. Built-in themes are \
             bundled with the app and cannot be edited (but can be copied).
+            """
+
+        case .customCSS:
+            return """
+            # Custom CSS
+
+            Custom CSS is injected after markdownViewr's built-in styles and theme variables, \
+            so it can override the rendered document, table of contents, source pane, and \
+            scrollbars.
+
+            Add global CSS in **Settings > General > Global Custom CSS**, or add per-theme CSS \
+            from the Theme Editor. The CSS Reference button opens a deeper selector guide with \
+            the app's current HTML structure.
+
+            ## Custom CSS Reference
+
+            The main panes are siblings:
+
+            ```text
+            body
+              nav#toc
+              div#toc-resizer
+              div#content
+                div#content-inner
+              div#raw-resizer
+              div#raw-source
+                pre > code
+            ```
+
+            Use `#content-inner` for rendered document body styles such as padding, background, \
+            or prose layout. Use `#content` only when you mean the rendered document scroll pane.
+
+            ## Useful selectors
+
+            | Selector | Target |
+            |---|---|
+            | `#content-inner` | Rendered document body |
+            | `h1` ... `h6` | Rendered headings |
+            | `.collapse-arrow` | Heading disclosure marker |
+            | `.frontmatter` | Rendered frontmatter table |
+            | `#toc` | Table of contents pane |
+            | `#toc a.active` | Current table-of-contents entry |
+            | `#raw-source` | Markdown source pane |
+            | `#raw-source pre` | Source text block |
+            | `#raw-source .raw-h` | Source heading lines |
+
+            ## Scrollbars
+
+            markdownViewr uses WebKit scrollbar pseudo-elements. You can style every scrollbar, \
+            or scope styles to one pane:
+
+            ```css
+            /* All scrollbars */
+            ::-webkit-scrollbar { width: 12px; height: 12px; }
+            ::-webkit-scrollbar-track { background: var(--bg); }
+            ::-webkit-scrollbar-thumb {
+                background: color-mix(in srgb, var(--text) 30%, var(--bg));
+                border: 3px solid var(--bg);
+                border-radius: 999px;
+            }
+            ::-webkit-scrollbar-thumb:hover { background: var(--link); }
+            ::-webkit-scrollbar-corner { background: var(--bg); }
+
+            /* Pane-specific scrollbar thumbs */
+            #content::-webkit-scrollbar-thumb { background: var(--h1); }
+            #toc::-webkit-scrollbar-thumb { background: var(--h2); }
+            #raw-source::-webkit-scrollbar-thumb { background: var(--link); }
+            ```
+
+            ## Examples
+
+            ```css
+            /* Add heading underlines */
+            h1, h2 {
+                border-bottom: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+                padding-bottom: 0.25em;
+            }
+
+            /* Recolor the Markdown source pane */
+            #raw-source, #raw-source pre,
+            #raw-source code { background: var(--code-bg); }
+            #raw-source code { color: var(--code-text); }
+            #raw-source .raw-h { color: var(--h2); }
+
+            /* Style the active table-of-contents entry */
+            #toc a.active { color: var(--h1); }
+            ```
             """
 
         case .editors:

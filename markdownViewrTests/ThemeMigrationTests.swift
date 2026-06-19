@@ -43,6 +43,25 @@ final class ThemeMigrationTests: XCTestCase {
         XCTAssertEqual(theme.schemaVersion, Theme.currentSchemaVersion)
     }
 
+    func testContentWidthConstrainsInnerContentNotScrollContainer() {
+        let defaults = UserDefaults.standard
+        let previousEnabled = defaults.object(forKey: "contentWidthEnabled")
+        let previousWidth = defaults.object(forKey: "contentWidthPx")
+        defer {
+            restore(previousEnabled, forKey: "contentWidthEnabled")
+            restore(previousWidth, forKey: "contentWidthPx")
+        }
+
+        let manager = ThemeManager()
+        manager.contentWidthEnabled = true
+        manager.contentWidthPx = 1230
+
+        let css = manager.generateCSS(for: Theme(name: "Content Width"))
+
+        XCTAssertTrue(css.contains("#content-inner { max-width: calc(1230px * var(--zoom)); margin: auto; }"))
+        XCTAssertFalse(css.contains("#content { max-width:"))
+    }
+
     // MARK: - Round-trip
 
     func testEncodesSchemaVersion() throws {
@@ -105,5 +124,13 @@ final class ThemeMigrationTests: XCTestCase {
             dict["schemaVersion"] = v
         }
         return dict
+    }
+
+    private func restore(_ value: Any?, forKey key: String) {
+        if let value {
+            UserDefaults.standard.set(value, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 }
