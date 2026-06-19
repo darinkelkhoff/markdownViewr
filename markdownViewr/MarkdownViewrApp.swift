@@ -5,6 +5,8 @@ import Sparkle
 
 @main
 struct MarkdownViewrApp: App {
+    @NSApplicationDelegateAdaptor(FileMenuPrunerApplicationDelegate.self) private var appDelegate
+
     #if !MAS_BUILD
     private let updaterController = SPUStandardUpdaterController(
         startingUpdater: true,

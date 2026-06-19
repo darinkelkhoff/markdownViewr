@@ -70,6 +70,17 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(appHelp.contains("scrollbar thumbs"))
     }
 
+    func testFileMenuKeepsDefaultCommandGroupsForNonEditingItems() throws {
+        let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+
+        XCTAssertFalse(appSource.contains("CommandGroup(replacing: .newItem)"))
+        XCTAssertFalse(appSource.contains("CommandGroup(replacing: .saveItem)"))
+        XCTAssertTrue(appSource.contains("FileMenuPrunerApplicationDelegate"))
+
+        let prunerSource = try loadSourceFile("markdownViewr/FileMenuPruner.swift")
+        XCTAssertTrue(prunerSource.contains("func menuWillOpen"))
+    }
+
     private func loadTemplate() throws -> String {
         let templateURL = try XCTUnwrap(
             Bundle.main.url(forResource: "template", withExtension: "html")
