@@ -33,7 +33,7 @@ targetTemplates:
         INFOPLIST_FILE: markdownViewr/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.dkelkhoff.markdownViewr
         PRODUCT_NAME: markdownViewr
-        MARKETING_VERSION: "1.2.0"
+        MARKETING_VERSION: "1.3.0"
         CURRENT_PROJECT_VERSION: "3"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
