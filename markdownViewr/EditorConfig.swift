@@ -23,6 +23,24 @@ struct EditorConfig: Codable, Identifiable, Hashable {
     }
 }
 
+enum ExternalEditorMenuState: Equatable {
+    case disabled
+    case single(EditorConfig, title: String)
+    case submenu([EditorConfig])
+
+    init(editors: [EditorConfig]) {
+        switch editors.count {
+        case 0:
+            self = .disabled
+        case 1:
+            let editor = editors[0]
+            self = .single(editor, title: "Open in \(editor.name)")
+        default:
+            self = .submenu(editors)
+        }
+    }
+}
+
 class EditorManager: ObservableObject {
     @Published var editors: [EditorConfig] {
         didSet {
@@ -49,6 +67,21 @@ class EditorManager: ObservableObject {
 
     func removeEditor(id: UUID) {
         editors.removeAll { $0.id == id }
+    }
+
+    func moveEditor(id: UUID, by offset: Int) {
+        guard let source = editors.firstIndex(where: { $0.id == id }) else { return }
+        let destination = source + offset
+        guard editors.indices.contains(destination) else { return }
+
+        var reorderedEditors = editors
+        reorderedEditors.swapAt(source, destination)
+        editors = reorderedEditors
+    }
+
+    func setOpensFolder(_ opensFolder: Bool, for id: UUID) {
+        guard let index = editors.firstIndex(where: { $0.id == id }) else { return }
+        editors[index].opensFolder = opensFolder
     }
 
     private func save() {

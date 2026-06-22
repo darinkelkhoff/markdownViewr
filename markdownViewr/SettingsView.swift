@@ -207,6 +207,7 @@ struct GeneralSettingsView: View {
 struct EditorsSettingsView: View {
     @EnvironmentObject var editorManager: EditorManager
     @State private var selectedEditorID: UUID?
+    private let editorActionButtonSize: CGFloat = 28
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -267,7 +268,10 @@ struct EditorsSettingsView: View {
                     addEditor()
                 } label: {
                     Image(systemName: "plus")
+                        .frame(width: editorActionButtonSize, height: editorActionButtonSize)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
                 Button {
                     if let id = selectedEditorID {
@@ -276,8 +280,37 @@ struct EditorsSettingsView: View {
                     }
                 } label: {
                     Image(systemName: "minus")
+                        .frame(width: editorActionButtonSize, height: editorActionButtonSize)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .disabled(selectedEditorID == nil)
+
+                Divider()
+                    .frame(height: editorActionButtonSize)
+                    .padding(.horizontal, 2)
+
+                Button {
+                    moveSelectedEditor(by: -1)
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .frame(width: editorActionButtonSize, height: editorActionButtonSize)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Move selected editor up")
+                .disabled(!canMoveSelectedEditorUp)
+
+                Button {
+                    moveSelectedEditor(by: 1)
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .frame(width: editorActionButtonSize, height: editorActionButtonSize)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Move selected editor down")
+                .disabled(!canMoveSelectedEditorDown)
 
                 Spacer()
 
@@ -285,7 +318,7 @@ struct EditorsSettingsView: View {
                    let index = editorManager.editors.firstIndex(where: { $0.id == id }) {
                     Toggle("Opens folder instead of file", isOn: Binding(
                         get: { editorManager.editors[index].opensFolder },
-                        set: { editorManager.editors[index].opensFolder = $0 }
+                        set: { editorManager.setOpensFolder($0, for: id) }
                     ))
                     .font(.caption)
                 }
@@ -293,6 +326,24 @@ struct EditorsSettingsView: View {
             .padding(.top, 8)
         }
         .padding(20)
+    }
+
+    private var selectedEditorIndex: Int? {
+        guard let selectedEditorID else { return nil }
+        return editorManager.editors.firstIndex { $0.id == selectedEditorID }
+    }
+
+    private var canMoveSelectedEditorUp: Bool {
+        selectedEditorIndex.map { $0 > 0 } ?? false
+    }
+
+    private var canMoveSelectedEditorDown: Bool {
+        selectedEditorIndex.map { $0 < editorManager.editors.count - 1 } ?? false
+    }
+
+    private func moveSelectedEditor(by offset: Int) {
+        guard let selectedEditorID else { return }
+        editorManager.moveEditor(id: selectedEditorID, by: offset)
     }
 
     private func addEditor() {

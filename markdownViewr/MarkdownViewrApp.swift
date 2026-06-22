@@ -15,7 +15,16 @@ struct MarkdownViewrApp: App {
     )
     #endif
     @StateObject private var themeManager = ThemeManager()
-    @StateObject private var editorManager = EditorManager()
+    @StateObject private var editorManager: EditorManager
+    @AppStorage("tocVisible") private var tocVisible = false
+    @AppStorage("tocDepth") private var tocDepth = 3
+    @AppStorage("rawVisible") private var rawVisible = false
+
+    init() {
+        let editorManager = EditorManager()
+        _editorManager = StateObject(wrappedValue: editorManager)
+        ExternalEditorFileMenuController.shared.editorManager = editorManager
+    }
 
     var body: some Scene {
         DocumentGroup(viewing: MarkdownDocument.self) { file in
@@ -73,6 +82,28 @@ struct MarkdownViewrApp: App {
             }
 
             CommandGroup(replacing: .toolbar) {
+                Toggle("Table of Contents", isOn: $tocVisible)
+                    .keyboardShortcut("t", modifiers: .command)
+
+                Menu("Table of Contents Depth") {
+                    ForEach(1...6, id: \.self) { depth in
+                        Button {
+                            tocDepth = depth
+                        } label: {
+                            if tocDepth == depth {
+                                Label("H\(depth)", systemImage: "checkmark")
+                            } else {
+                                Text("H\(depth)")
+                            }
+                        }
+                    }
+                }
+
+                Toggle("Markdown Source", isOn: $rawVisible)
+                    .keyboardShortcut("u", modifiers: .command)
+
+                Divider()
+
                 Button("Zoom In") {
                     themeManager.zoomIn()
                 }
