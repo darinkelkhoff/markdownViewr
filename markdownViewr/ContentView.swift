@@ -31,6 +31,7 @@ struct ContentView: View {
     @StateObject private var folderAccess = FolderAccessManager()
     @State private var renderedHTML = ""
     @State private var docNeedsImageAccess = false
+    @StateObject private var toolbarController = DocumentToolbarController()
     @AppStorage("tocVisible") private var tocVisible = false
     @AppStorage("tocDepth") private var tocDepth = 3
     @AppStorage("tocWidth") private var tocWidth: Double = 220
@@ -115,7 +116,22 @@ struct ContentView: View {
         .background(WindowAccessor { window in
             findBar.window = window
             if let window {
-                ZoomToolbarConfigurator.shared.configure(in: window, themeManager: themeManager)
+                toolbarController.configure(
+                    in: window,
+                    themeManager: themeManager,
+                    editorManager: editorManager,
+                    fileURL: fileURL,
+                    tocVisible: tocVisible,
+                    tocDepth: tocDepth,
+                    rawVisible: rawVisible,
+                    setTocVisible: { tocVisible = $0 },
+                    setTocDepth: { tocDepth = $0 },
+                    setRawVisible: { rawVisible = $0 },
+                    showMissingEditor: { editorName in
+                        missingEditorName = editorName
+                        showMissingEditorAlert = true
+                    }
+                )
             }
         })
         .onAppear {
@@ -131,29 +147,6 @@ struct ContentView: View {
         .onDisappear {
             liveContent.fileWatcher = nil
         }
-        .toolbar(id: "document-toolbar") {
-            ToolbarItem(id: "toc", placement: .automatic) {
-                tocToggleButton
-            }
-            ToolbarItem(id: "toc-depth", placement: .automatic) {
-                tocDepthPicker
-            }
-            if #available(macOS 26.0, *) {
-                ToolbarSpacer(.fixed, placement: .automatic)
-            }
-            ToolbarItem(id: "markdown-source", placement: .automatic) {
-                rawButton
-            }
-            ToolbarItem(id: "zoom", placement: .automatic) {
-                zoomIconControls
-            }
-            ToolbarItem(id: "theme", placement: .automatic) {
-                palettePicker
-            }
-            ToolbarItem(id: "external-editor", placement: .automatic) {
-                editorButton
-            }
-        }
         .alert("Editor Not Found", isPresented: $showMissingEditorAlert) {
             Button("Remove from List") {
                 editorManager.editors.removeAll { $0.name == missingEditorName }
@@ -164,262 +157,230 @@ struct ContentView: View {
         }
     }
 
-    private var tocToggleButton: some View {
-        Button {
-            tocVisible.toggle()
-        } label: {
-            Label("TOC", systemImage: tocVisible ? "list.bullet.circle.fill" : "list.bullet.circle")
-        }
-        .help(tocVisible ? "Hide Table of Contents" : "Show Table of Contents")
-    }
-
-    private var tocDepthPicker: some View {
-        Picker("TOC Depth", selection: $tocDepth) {
-            Text("H1").tag(1)
-            Text("H2").tag(2)
-            Text("H3").tag(3)
-            Text("H4").tag(4)
-            Text("H5").tag(5)
-            Text("H6").tag(6)
-        }
-        .frame(width: 60)
-        .disabled(!tocVisible)
-        .help("Table of Contents depth")
-    }
-
-    private var rawButton: some View {
-        Button {
-            rawVisible.toggle()
-        } label: {
-            Label("Markdown Source", systemImage: rawVisible ? "doc.plaintext.fill" : "doc.plaintext")
-        }
-        .help(rawVisible ? "Hide Markdown Source" : "Show Markdown Source")
-    }
-
-    private var zoomIconControls: some View {
-        HStack(spacing: 2) {
-            Button {
-                handleZoomOutToolbarAction()
-            } label: {
-                Label("Zoom", systemImage: "minus.magnifyingglass")
-                    .labelStyle(.iconOnly)
-            }
-            .accessibilityLabel("Zoom Out")
-            .help("Zoom Out")
-
-            Button {
-                themeManager.zoomReset()
-            } label: {
-                Text("\(Int(themeManager.zoomScale * 100))%")
-                    .font(.system(size: 11).monospacedDigit())
-                    .frame(width: 38)
-            }
-            .buttonStyle(.plain)
-            .help("Actual Size")
-
-            Button {
-                themeManager.zoomIn()
-            } label: {
-                Label("Zoom In", systemImage: "plus.magnifyingglass")
-                    .labelStyle(.iconOnly)
-            }
-            .help("Zoom In")
-        }
-        .accessibilityLabel("Zoom")
-        .help("Zoom")
-    }
-
-    private func handleZoomOutToolbarAction() {
-        if NSApp.keyWindow?.toolbar?.displayMode == .labelOnly {
-            ZoomToolbarConfigurator.shared.showZoomMenuFromCurrentEvent()
-        } else {
-            themeManager.zoomOut()
-        }
-    }
-
-    private var palettePicker: some View {
-        Picker(selection: $themeManager.activeThemeName) {
-            ForEach(themeManager.themes) { theme in
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color(hex: theme.colors.heading1) ?? .purple)
-                        .frame(width: 10, height: 10)
-                    Text(theme.name)
-                }
-                .tag(theme.name)
-            }
-        } label: {
-            Label("Theme", systemImage: "paintpalette")
-        }
-        .pickerStyle(.menu)
-    }
-
-    @ViewBuilder
-    private var editorButton: some View {
-        let validEditors = editorManager.editors.filter(\.exists)
-
-        if editorManager.editors.isEmpty {
-            Button {
-            } label: {
-                Label("Open in Editor", systemImage: "square.and.pencil")
-            }
-            .disabled(true)
-            .help("Configure an external editor in Settings")
-        } else if validEditors.count == 1 {
-            Button {
-                openInEditor(validEditors[0])
-            } label: {
-                Label("Open in \(validEditors[0].name)", systemImage: "square.and.pencil")
-            }
-            .help("Open in \(validEditors[0].name)")
-        } else {
-            Menu {
-                ForEach(editorManager.editors) { editor in
-                    Button {
-                        openInEditor(editor)
-                    } label: {
-                        HStack {
-                            Text(editor.name)
-                            if editor.opensFolder {
-                                Text("(folder)")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            } label: {
-                Label("Open in Editor", systemImage: "square.and.pencil")
-            }
-            .help("Open in external editor")
-        }
-    }
-
-    private func openInEditor(_ editor: EditorConfig) {
-        guard let fileURL else { return }
-
-        guard editor.exists else {
-            missingEditorName = editor.name
-            showMissingEditorAlert = true
-            return
-        }
-
-        editorManager.openFile(fileURL, with: editor)
-    }
 }
 
-final class ZoomToolbarConfigurator: NSObject {
-    static let shared = ZoomToolbarConfigurator()
-
+final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDelegate {
     private weak var themeManager: ThemeManager?
-    private weak var observedToolbar: NSToolbar?
+    private weak var editorManager: EditorManager?
+    private weak var window: NSWindow?
+    private var fileURL: URL?
+    private var tocVisible = false
+    private var tocDepth = 3
+    private var rawVisible = false
+    private var setTocVisible: ((Bool) -> Void)?
+    private var setTocDepth: ((Int) -> Void)?
+    private var setRawVisible: ((Bool) -> Void)?
+    private var showMissingEditor: ((String) -> Void)?
 
-    func configure(in window: NSWindow, themeManager: ThemeManager) {
+    func configure(
+        in window: NSWindow,
+        themeManager: ThemeManager,
+        editorManager: EditorManager,
+        fileURL: URL?,
+        tocVisible: Bool,
+        tocDepth: Int,
+        rawVisible: Bool,
+        setTocVisible: @escaping (Bool) -> Void,
+        setTocDepth: @escaping (Int) -> Void,
+        setRawVisible: @escaping (Bool) -> Void,
+        showMissingEditor: @escaping (String) -> Void
+    ) {
+        self.window = window
         self.themeManager = themeManager
-        if let toolbar = window.toolbar {
-            configureCustomization(for: toolbar)
-            observeToolbar(toolbar)
-            configureToolbar(toolbar)
-        }
-        configure(in: window, after: 0)
-        configure(in: window, after: 0.1)
-        configure(in: window, after: 0.5)
-    }
+        self.editorManager = editorManager
+        self.fileURL = fileURL
+        self.tocVisible = tocVisible
+        self.tocDepth = tocDepth
+        self.rawVisible = rawVisible
+        self.setTocVisible = setTocVisible
+        self.setTocDepth = setTocDepth
+        self.setRawVisible = setRawVisible
+        self.showMissingEditor = showMissingEditor
 
-    private func configure(in window: NSWindow, after delay: TimeInterval) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak window] in
-            guard let self, let window else { return }
-            self.configureToolbar(in: window)
-        }
-    }
-
-    private func configureToolbar(in window: NSWindow) {
-        guard let toolbar = window.toolbar else { return }
-        configureCustomization(for: toolbar)
-        observeToolbar(toolbar)
-        configureToolbar(toolbar)
-    }
-
-    private func configureCustomization(for toolbar: NSToolbar) {
-        toolbar.allowsUserCustomization = true
-        toolbar.autosavesConfiguration = true
-    }
-
-    private func configureToolbar(_ toolbar: NSToolbar) {
-        for item in toolbar.items where isZoomToolbarItem(item) {
-            configureZoomItem(item)
-        }
-    }
-
-    private func observeToolbar(_ toolbar: NSToolbar) {
-        guard observedToolbar !== toolbar else { return }
-
-        if let observedToolbar {
-            NotificationCenter.default.removeObserver(self, name: NSToolbar.willAddItemNotification, object: observedToolbar)
-            NotificationCenter.default.removeObserver(self, name: NSToolbar.didRemoveItemNotification, object: observedToolbar)
+        if window.toolbar?.identifier != .documentToolbar || window.toolbar?.delegate !== self {
+            let toolbar = NSToolbar(identifier: .documentToolbar)
+            toolbar.delegate = self
+            toolbar.allowsUserCustomization = true
+            toolbar.autosavesConfiguration = true
+            toolbar.displayMode = NSToolbar.DisplayMode.default
+            window.toolbar = toolbar
         }
 
-        observedToolbar = toolbar
-        NotificationCenter.default.addObserver(self, selector: #selector(toolbarWillAddItem(_:)), name: NSToolbar.willAddItemNotification, object: toolbar)
-        NotificationCenter.default.addObserver(self, selector: #selector(toolbarDidRemoveItem(_:)), name: NSToolbar.didRemoveItemNotification, object: toolbar)
+        updateVisibleItems()
     }
 
-    @objc private func toolbarWillAddItem(_ notification: Notification) {
-        if let item = notification.userInfo?[NSToolbarUserInfoKey.itemKey] as? NSToolbarItem,
-           isZoomToolbarItem(item) {
-            configureZoomItem(item)
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space, .flexibleSpace]
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.toc, .tocDepth, .space, .markdownSource, .zoom, .theme, .externalEditor]
+    }
+
+    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        []
+    }
+
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        if item.itemIdentifier == .externalEditor {
+            return hasValidExternalEditor
         }
-        scheduleConfigureToolbar(for: notification)
+        return true
     }
 
-    @objc private func toolbarDidRemoveItem(_ notification: Notification) {
-        scheduleConfigureToolbar(for: notification)
-    }
-
-    private func scheduleConfigureToolbar(for notification: Notification) {
-        guard let toolbar = notification.object as? NSToolbar else { return }
-        DispatchQueue.main.async { [weak self, weak toolbar] in
-            guard let self, let toolbar else { return }
-            self.configureToolbar(toolbar)
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        switch itemIdentifier {
+        case .toc:
+            return makeTOCItem()
+        case .tocDepth:
+            return makeTOCDepthItem()
+        case .markdownSource:
+            return makeMarkdownSourceItem()
+        case .zoom:
+            return makeZoomItem()
+        case .theme:
+            return makeThemeItem()
+        case .externalEditor:
+            return makeExternalEditorItem()
+        default:
+            return nil
         }
     }
 
-    private func isZoomToolbarItem(_ item: NSToolbarItem) -> Bool {
-        item.label == "Zoom"
-            || item.label == "Zoom Out"
-            || item.paletteLabel == "Zoom"
-            || item.paletteLabel == "Zoom Out"
-            || item.toolTip == "Zoom"
-            || item.view?.accessibilityLabel() == "Zoom"
-            || item.view.map(viewContainsZoomControls) == true
+    private func makeTOCItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .toc)
+        item.label = "TOC"
+        item.paletteLabel = "TOC"
+        item.toolTip = tocVisible ? "Hide Table of Contents" : "Show Table of Contents"
+        item.image = NSImage(systemSymbolName: tocVisible ? "list.bullet.circle.fill" : "list.bullet.circle", accessibilityDescription: "TOC")
+        item.target = self
+        item.action = #selector(toggleTOC)
+        item.menuFormRepresentation = toolbarMenuItem(title: "TOC", action: #selector(toggleTOC), state: tocVisible ? .on : .off)
+        return item
     }
 
-    private func viewContainsZoomControls(_ view: NSView) -> Bool {
-        if view.accessibilityLabel() == "Zoom"
-            || view.accessibilityLabel() == "Zoom Out"
-            || view.accessibilityHelp() == "Zoom"
-            || view.accessibilityHelp() == "Zoom Out"
-            || view.accessibilityIdentifier() == "minus.magnifyingglass"
-            || view.accessibilityIdentifier() == "plus.magnifyingglass" {
-            return true
+    private func makeTOCDepthItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .tocDepth)
+        item.label = "TOC Depth"
+        item.paletteLabel = "TOC Depth"
+        item.toolTip = "Table of Contents depth"
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 62, height: 26), pullsDown: false)
+        for depth in 1...6 {
+            popup.addItem(withTitle: "H\(depth)")
         }
-
-        for subview in view.subviews where viewContainsZoomControls(subview) {
-            return true
-        }
-        return false
+        popup.selectItem(at: max(0, min(5, tocDepth - 1)))
+        popup.isEnabled = tocVisible
+        popup.target = self
+        popup.action = #selector(tocDepthChanged(_:))
+        item.view = popup
+        item.menuFormRepresentation = tocDepthMenuItem()
+        return item
     }
 
-    private func configureZoomItem(_ item: NSToolbarItem) {
+    private func makeMarkdownSourceItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .markdownSource)
+        item.label = "Markdown Source"
+        item.paletteLabel = "Markdown Source"
+        item.toolTip = rawVisible ? "Hide Markdown Source" : "Show Markdown Source"
+        item.image = NSImage(systemSymbolName: rawVisible ? "doc.plaintext.fill" : "doc.plaintext", accessibilityDescription: "Markdown Source")
+        item.target = self
+        item.action = #selector(toggleMarkdownSource)
+        item.menuFormRepresentation = toolbarMenuItem(title: "Markdown Source", action: #selector(toggleMarkdownSource), state: rawVisible ? .on : .off)
+        return item
+    }
+
+    private func makeZoomItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .zoom)
         item.label = "Zoom"
         item.paletteLabel = "Zoom"
         item.toolTip = "Zoom"
         item.view = zoomControlView()
-        item.label = "Zoom"
-        item.paletteLabel = "Zoom"
-        item.toolTip = "Zoom"
         item.target = self
-        item.action = #selector(showZoomMenu(_:))
+        item.action = #selector(showZoomMenuFromToolbar(_:))
         item.menuFormRepresentation = zoomMenuItem()
+        return item
+    }
+
+    private func makeThemeItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .theme)
+        item.label = "Theme"
+        item.paletteLabel = "Theme"
+        item.toolTip = "Theme"
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 150, height: 26), pullsDown: false)
+        for theme in themeManager?.themes ?? [] {
+            popup.addItem(withTitle: theme.name)
+        }
+        popup.selectItem(withTitle: themeManager?.activeThemeName ?? "")
+        popup.target = self
+        popup.action = #selector(themeChanged(_:))
+        item.view = popup
+        item.menuFormRepresentation = themeMenuItem()
+        return item
+    }
+
+    private func makeExternalEditorItem() -> NSToolbarItem {
+        let editors = editorManager?.editors ?? []
+        let validEditors = editors.filter(\.exists)
+        let item = NSToolbarItem(itemIdentifier: .externalEditor)
+        item.label = externalEditorLabel
+        item.paletteLabel = "Open in Editor"
+        item.toolTip = externalEditorHelp
+        item.image = NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: "Open in Editor")
+        item.target = self
+        item.action = #selector(openExternalEditorFromToolbar(_:))
+        item.autovalidates = false
+
+        item.isEnabled = !validEditors.isEmpty
+        item.view = externalEditorButton(isEnabled: !validEditors.isEmpty)
+
+        if editors.isEmpty || validEditors.isEmpty {
+            item.isEnabled = false
+            item.menuFormRepresentation = toolbarMenuItem(title: externalEditorLabel, action: nil, isEnabled: false)
+        } else if validEditors.count == 1 {
+            item.menuFormRepresentation = toolbarMenuItem(title: externalEditorLabel, action: #selector(openExternalEditorFromToolbar(_:)))
+        } else {
+            item.menuFormRepresentation = toolbarMenuItem(title: externalEditorLabel, action: #selector(openExternalEditorFromToolbar(_:)))
+        }
+        return item
+    }
+
+    private var externalEditorLabel: String {
+        let validEditors = editorManager?.editors.filter(\.exists) ?? []
+        if validEditors.count == 1 {
+            return "Open in \(validEditors[0].name)"
+        }
+        return "Open in Editor"
+    }
+
+    private var hasValidExternalEditor: Bool {
+        editorManager?.editors.contains(where: \.exists) == true
+    }
+
+    private var externalEditorHelp: String {
+        if editorManager?.editors.isEmpty == true {
+            return "Configure an external editor in Settings"
+        }
+        return "Open in external editor"
+    }
+
+    private func externalEditorButton(isEnabled: Bool) -> NSButton {
+        let button = NSButton(
+            image: NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: "Open in Editor") ?? NSImage(),
+            target: self,
+            action: #selector(openExternalEditorFromToolbar(_:))
+        )
+        button.bezelStyle = .texturedRounded
+        button.imagePosition = .imageOnly
+        button.isBordered = false
+        button.isEnabled = isEnabled
+        button.toolTip = externalEditorHelp
+        button.setAccessibilityLabel(externalEditorLabel)
+        button.frame = NSRect(x: 0, y: 0, width: 28, height: 28)
+        return button
     }
 
     private func zoomControlView() -> NSView {
@@ -445,10 +406,6 @@ final class ZoomToolbarConfigurator: NSObject {
         Int(round((themeManager?.zoomScale ?? 1.0) * 100))
     }
 
-    func showZoomMenuFromCurrentEvent() {
-        showZoomMenu(nil)
-    }
-
     private func zoomMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Zoom", action: nil, keyEquivalent: "")
         item.submenu = zoomMenu()
@@ -466,7 +423,54 @@ final class ZoomToolbarConfigurator: NSObject {
         return menu
     }
 
-    @objc private func showZoomMenu(_ sender: Any?) {
+    private func tocDepthMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "TOC Depth", action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: "TOC Depth")
+        for depth in 1...6 {
+            let menuItem = NSMenuItem(title: "H\(depth)", action: #selector(setTOCDepthFromMenu(_:)), keyEquivalent: "")
+            menuItem.target = self
+            menuItem.tag = depth
+            menuItem.state = tocDepth == depth ? .on : .off
+            menu.addItem(menuItem)
+        }
+        item.submenu = menu
+        return item
+    }
+
+    private func themeMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: "Theme")
+        for theme in themeManager?.themes ?? [] {
+            let menuItem = NSMenuItem(title: theme.name, action: #selector(themeChangedFromMenu(_:)), keyEquivalent: "")
+            menuItem.target = self
+            menuItem.state = theme.name == themeManager?.activeThemeName ? .on : .off
+            menu.addItem(menuItem)
+        }
+        item.submenu = menu
+        return item
+    }
+
+    private func externalEditorMenu() -> NSMenu {
+        let menu = NSMenu(title: "Open in Editor")
+        for editor in editorManager?.editors ?? [] {
+            let menuItem = NSMenuItem(title: editor.opensFolder ? "\(editor.name) (folder)" : editor.name, action: #selector(openExternalEditorFromMenu(_:)), keyEquivalent: "")
+            menuItem.target = self
+            menuItem.representedObject = editor.id
+            menuItem.isEnabled = editor.exists
+            menu.addItem(menuItem)
+        }
+        return menu
+    }
+
+    private func toolbarMenuItem(title: String, action: Selector?, state: NSControl.StateValue = .off, isEnabled: Bool = true) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.state = state
+        item.isEnabled = isEnabled
+        return item
+    }
+
+    @objc private func showZoomMenuFromToolbar(_ sender: Any?) {
         let menu = zoomMenu()
         if let view = sender as? NSView {
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height), in: view)
@@ -477,6 +481,75 @@ final class ZoomToolbarConfigurator: NSObject {
               let contentView = event.window?.contentView
         else { return }
         let point = contentView.convert(event.locationInWindow, from: nil)
+        menu.popUp(positioning: nil, at: point, in: contentView)
+    }
+
+    @objc private func toggleTOC() {
+        setTocVisible?(!tocVisible)
+    }
+
+    @objc private func tocDepthChanged(_ sender: NSPopUpButton) {
+        setTocDepth?(sender.indexOfSelectedItem + 1)
+    }
+
+    @objc private func setTOCDepthFromMenu(_ sender: NSMenuItem) {
+        setTocDepth?(sender.tag)
+    }
+
+    @objc private func toggleMarkdownSource() {
+        setRawVisible?(!rawVisible)
+    }
+
+    @objc private func themeChanged(_ sender: NSPopUpButton) {
+        guard let title = sender.selectedItem?.title else { return }
+        themeManager?.activeThemeName = title
+    }
+
+    @objc private func themeChangedFromMenu(_ sender: NSMenuItem) {
+        themeManager?.activeThemeName = sender.title
+    }
+
+    @objc private func openExternalEditorFromToolbar(_ sender: Any?) {
+        let validEditors = editorManager?.editors.filter(\.exists) ?? []
+        if validEditors.count == 1 {
+            open(validEditors[0])
+        } else if validEditors.count > 1 {
+            showExternalEditorMenu(from: sender)
+        }
+    }
+
+    @objc private func openExternalEditorFromMenu(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID,
+              let editor = editorManager?.editors.first(where: { $0.id == id })
+        else { return }
+        open(editor)
+    }
+
+    private func open(_ editor: EditorConfig) {
+        guard let fileURL else { return }
+        guard editor.exists else {
+            showMissingEditor?(editor.name)
+            return
+        }
+        editorManager?.openFile(fileURL, with: editor)
+    }
+
+    private func showExternalEditorMenu(from sender: Any?) {
+        let menu = externalEditorMenu()
+        if let view = sender as? NSView {
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height), in: view)
+            return
+        }
+
+        guard let contentView = window?.contentView else { return }
+        let point: NSPoint
+        if let event = NSApp.currentEvent, event.window === window {
+            point = contentView.convert(event.locationInWindow, from: nil)
+        } else if let window {
+            point = contentView.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        } else {
+            point = NSPoint(x: contentView.bounds.midX, y: contentView.bounds.maxY)
+        }
         menu.popUp(positioning: nil, at: point, in: contentView)
     }
 
@@ -504,6 +577,66 @@ final class ZoomToolbarConfigurator: NSObject {
     @objc private func zoomIn() {
         themeManager?.zoomIn()
     }
+
+    private func updateVisibleItems() {
+        guard let toolbar = window?.toolbar else { return }
+        for item in toolbar.items {
+            switch item.itemIdentifier {
+            case .toc:
+                item.image = NSImage(systemSymbolName: tocVisible ? "list.bullet.circle.fill" : "list.bullet.circle", accessibilityDescription: "TOC")
+                item.toolTip = tocVisible ? "Hide Table of Contents" : "Show Table of Contents"
+                item.menuFormRepresentation = toolbarMenuItem(title: "TOC", action: #selector(toggleTOC), state: tocVisible ? .on : .off)
+            case .tocDepth:
+                if let popup = item.view as? NSPopUpButton {
+                    popup.selectItem(at: max(0, min(5, tocDepth - 1)))
+                    popup.isEnabled = tocVisible
+                }
+                item.menuFormRepresentation = tocDepthMenuItem()
+            case .markdownSource:
+                item.image = NSImage(systemSymbolName: rawVisible ? "doc.plaintext.fill" : "doc.plaintext", accessibilityDescription: "Markdown Source")
+                item.toolTip = rawVisible ? "Hide Markdown Source" : "Show Markdown Source"
+                item.menuFormRepresentation = toolbarMenuItem(title: "Markdown Source", action: #selector(toggleMarkdownSource), state: rawVisible ? .on : .off)
+            case .zoom:
+                item.view = zoomControlView()
+                item.menuFormRepresentation = zoomMenuItem()
+            case .theme:
+                if let popup = item.view as? NSPopUpButton {
+                    popup.removeAllItems()
+                    for theme in themeManager?.themes ?? [] {
+                        popup.addItem(withTitle: theme.name)
+                    }
+                    popup.selectItem(withTitle: themeManager?.activeThemeName ?? "")
+                }
+                item.menuFormRepresentation = themeMenuItem()
+            case .externalEditor:
+                let replacement = makeExternalEditorItem()
+                item.label = replacement.label
+                item.paletteLabel = replacement.paletteLabel
+                item.toolTip = replacement.toolTip
+                item.image = replacement.image
+                item.target = replacement.target
+                item.action = replacement.action
+                item.view = replacement.view
+                item.menuFormRepresentation = replacement.menuFormRepresentation
+                item.isEnabled = replacement.isEnabled
+            default:
+                break
+            }
+        }
+    }
+}
+
+private extension NSToolbarItem.Identifier {
+    static let toc = NSToolbarItem.Identifier("toc")
+    static let tocDepth = NSToolbarItem.Identifier("toc-depth")
+    static let markdownSource = NSToolbarItem.Identifier("markdown-source")
+    static let zoom = NSToolbarItem.Identifier("zoom")
+    static let theme = NSToolbarItem.Identifier("theme")
+    static let externalEditor = NSToolbarItem.Identifier("external-editor")
+}
+
+private extension NSToolbar.Identifier {
+    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v2")
 }
 
 private final class ZoomToolbarControlView: NSView {

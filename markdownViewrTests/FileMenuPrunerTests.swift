@@ -48,24 +48,24 @@ final class ExternalEditorMenuStateTests: XCTestCase {
     }
 
     func testSingleEditorUsesAppNameInTitle() {
-        let editor = EditorConfig(name: "Nova", path: "/Applications/Nova.app")
+        let editor = EditorConfig(name: "TextEdit", path: "/System/Applications/TextEdit.app")
         let state = ExternalEditorMenuState(editors: [editor])
 
-        XCTAssertEqual(state, .single(editor, title: "Open in Nova"))
+        XCTAssertEqual(state, .single(editor, title: "Open in TextEdit"))
     }
 
     func testMultipleEditorsUseSubmenu() {
-        let nova = EditorConfig(name: "Nova", path: "/Applications/Nova.app")
+        let textEdit = EditorConfig(name: "TextEdit", path: "/System/Applications/TextEdit.app")
         let code = EditorConfig(name: "Visual Studio Code", path: "/Applications/Visual Studio Code.app")
-        let state = ExternalEditorMenuState(editors: [nova, code])
+        let state = ExternalEditorMenuState(editors: [textEdit, code])
 
-        XCTAssertEqual(state, .submenu([nova, code]))
+        XCTAssertEqual(state, .submenu([textEdit, code]))
     }
 
     func testSingleEditorFileMenuItemKeepsEditorIDForAction() throws {
         let controller = ExternalEditorFileMenuController()
         let manager = EditorManager()
-        let editor = EditorConfig(name: "Nova", path: "/Applications/Nova.app")
+        let editor = EditorConfig(name: "TextEdit", path: "/System/Applications/TextEdit.app")
         manager.editors = [editor]
         controller.editorManager = manager
 
@@ -74,7 +74,7 @@ final class ExternalEditorMenuStateTests: XCTestCase {
 
         controller.update(in: fileMenu)
 
-        let item = try XCTUnwrap(fileMenu.item(withTitle: "Open in Nova"))
+        let item = try XCTUnwrap(fileMenu.item(withTitle: "Open in TextEdit"))
         XCTAssertEqual(item.representedObject as? String, editor.id.uuidString)
         XCTAssertTrue(item.target === controller)
     }

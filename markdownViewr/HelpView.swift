@@ -435,7 +435,7 @@ struct HelpView: View {
 
             Enable **Opens folder instead of file** if the editor works better when opened \
             to the containing directory rather than the file itself — useful for \
-            project-based editors like VS Code or Nova, terminal emulators like Terminal \
+            project-based editors like VS Code, terminal emulators like Terminal \
             (`/System/Applications/Utilities/Terminal.app`), or Finder \
             (`/System/Library/CoreServices/Finder.app`).
 

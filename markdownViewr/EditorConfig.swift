@@ -103,6 +103,8 @@ class EditorManager: ObservableObject {
             : fileURL
 
         let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        config.allowsRunningApplicationSubstitution = false
         workspace.open([urlToOpen], withApplicationAt: appURL, configuration: config)
     }
 }
