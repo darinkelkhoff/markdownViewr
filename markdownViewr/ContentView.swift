@@ -131,23 +131,26 @@ struct ContentView: View {
         .onDisappear {
             liveContent.fileWatcher = nil
         }
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
+        .toolbar(id: "document-toolbar") {
+            ToolbarItem(id: "toc", placement: .automatic) {
                 tocToggleButton
             }
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(id: "toc-depth", placement: .automatic) {
                 tocDepthPicker
             }
-            ToolbarItem(placement: .automatic) {
+            if #available(macOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .automatic)
+            }
+            ToolbarItem(id: "markdown-source", placement: .automatic) {
                 rawButton
             }
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(id: "zoom", placement: .automatic) {
                 zoomIconControls
             }
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(id: "theme", placement: .automatic) {
                 palettePicker
             }
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(id: "external-editor", placement: .automatic) {
                 editorButton
             }
         }
@@ -171,7 +174,7 @@ struct ContentView: View {
     }
 
     private var tocDepthPicker: some View {
-        Picker("Table of Contents Depth", selection: $tocDepth) {
+        Picker("TOC Depth", selection: $tocDepth) {
             Text("H1").tag(1)
             Text("H2").tag(2)
             Text("H3").tag(3)
@@ -313,6 +316,7 @@ final class ZoomToolbarConfigurator: NSObject {
     func configure(in window: NSWindow, themeManager: ThemeManager) {
         self.themeManager = themeManager
         if let toolbar = window.toolbar {
+            configureCustomization(for: toolbar)
             observeToolbar(toolbar)
             configureToolbar(toolbar)
         }
@@ -330,8 +334,14 @@ final class ZoomToolbarConfigurator: NSObject {
 
     private func configureToolbar(in window: NSWindow) {
         guard let toolbar = window.toolbar else { return }
+        configureCustomization(for: toolbar)
         observeToolbar(toolbar)
         configureToolbar(toolbar)
+    }
+
+    private func configureCustomization(for toolbar: NSToolbar) {
+        toolbar.allowsUserCustomization = true
+        toolbar.autosavesConfiguration = true
     }
 
     private func configureToolbar(_ toolbar: NSToolbar) {

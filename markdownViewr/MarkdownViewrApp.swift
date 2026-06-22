@@ -81,7 +81,7 @@ struct MarkdownViewrApp: App {
                 .keyboardShortcut("?", modifiers: .command)
             }
 
-            CommandGroup(replacing: .toolbar) {
+            CommandGroup(before: .toolbar) {
                 Toggle("Table of Contents", isOn: $tocVisible)
                     .keyboardShortcut("t", modifiers: .command)
 

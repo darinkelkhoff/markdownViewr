@@ -153,12 +153,14 @@ final class TemplateScrollbarTests: XCTestCase {
     func testToolbarControlsExposeStableTextLabels() throws {
         let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
 
-        XCTAssertTrue(contentSource.contains("ToolbarItem(placement: .automatic)"))
+        XCTAssertTrue(contentSource.contains(#".toolbar(id: "document-toolbar")"#))
+        XCTAssertTrue(contentSource.contains(#"ToolbarItem(id: "toc", placement: .automatic)"#))
         XCTAssertFalse(contentSource.contains("ToolbarItemGroup(placement: .automatic)"))
         XCTAssertFalse(contentSource.contains("tocControls"))
         XCTAssertFalse(contentSource.contains("zoomControls"))
         XCTAssertTrue(contentSource.contains(#"Label("TOC", systemImage:"#))
-        XCTAssertTrue(contentSource.contains(#"Picker("Table of Contents Depth", selection: $tocDepth)"#))
+        XCTAssertTrue(contentSource.contains(#"Picker("TOC Depth", selection: $tocDepth)"#))
+        XCTAssertFalse(contentSource.contains(#"Picker("Table of Contents Depth", selection: $tocDepth)"#))
         XCTAssertTrue(contentSource.contains(#"Label("Markdown Source", systemImage:"#))
         XCTAssertFalse(contentSource.contains("ToolbarDisplayModeReader"))
         XCTAssertFalse(contentSource.contains("NSToolbar.DisplayMode"))
@@ -210,6 +212,31 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(contentSource.contains(#".accessibilityLabel("Zoom")"#))
         XCTAssertTrue(contentSource.contains(#"Label("Theme", systemImage: "paintpalette")"#))
         XCTAssertFalse(contentSource.contains("Text(themeManager.activeTheme.name)"))
+    }
+
+    func testToolbarIsNativelyCustomizable() throws {
+        let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
+
+        XCTAssertFalse(appSource.contains("CommandGroup(replacing: .toolbar)"))
+        XCTAssertTrue(appSource.contains("CommandGroup(before: .toolbar)"))
+        XCTAssertTrue(contentSource.contains(#".toolbar(id: "document-toolbar")"#))
+        XCTAssertTrue(contentSource.contains(#"ToolbarItem(id: "toc", placement: .automatic)"#))
+        XCTAssertTrue(contentSource.contains(#"ToolbarItem(id: "toc-depth", placement: .automatic)"#))
+        XCTAssertTrue(contentSource.contains(#"ToolbarItem(id: "markdown-source", placement: .automatic)"#))
+        XCTAssertTrue(contentSource.contains(#"ToolbarItem(id: "zoom", placement: .automatic)"#))
+        XCTAssertTrue(contentSource.contains(#"ToolbarItem(id: "theme", placement: .automatic)"#))
+        XCTAssertTrue(contentSource.contains(#"ToolbarItem(id: "external-editor", placement: .automatic)"#))
+        XCTAssertTrue(contentSource.contains("toolbar.allowsUserCustomization = true"))
+        XCTAssertTrue(contentSource.contains("toolbar.autosavesConfiguration = true"))
+    }
+
+    func testToolbarCustomizationIncludesSpaceItemsOnSupportedMacOS() throws {
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
+
+        XCTAssertTrue(contentSource.contains("if #available(macOS 26.0, *)"))
+        XCTAssertTrue(contentSource.contains("ToolbarSpacer(.fixed, placement: .automatic)"))
+        XCTAssertFalse(contentSource.contains("ToolbarSpacer(.flexible, placement: .automatic)"))
     }
 
     private func loadTemplate() throws -> String {
