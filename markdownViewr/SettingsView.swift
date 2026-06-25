@@ -28,8 +28,23 @@ struct SettingsView: View {
     }
 }
 
+private struct SettingsScrollView<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ScrollView(.vertical) {
+            content
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(20)
+        }
+    }
+}
+
 struct GeneralSettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
+    @AppStorage("defaultTocVisible") private var defaultTocVisible = false
+    @AppStorage("defaultTocDepth") private var defaultTocDepth = 3
+    @AppStorage("defaultRawVisible") private var defaultRawVisible = false
     @AppStorage("tocWrap") private var tocWrap = false
     @AppStorage("tocBullets") private var tocBullets = false
     @State private var isDefault = false
@@ -37,10 +52,11 @@ struct GeneralSettingsView: View {
     @State private var showCSSHelp = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("General")
-                .font(.headline)
-                .padding(.bottom, 16)
+        SettingsScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("General")
+                    .font(.headline)
+                    .padding(.bottom, 16)
 
             GroupBox {
                 HStack {
@@ -111,6 +127,31 @@ struct GeneralSettingsView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Show Table of Contents in new windows", isOn: $defaultTocVisible)
+                        .toggleStyle(.checkbox)
+
+                    HStack {
+                        Text("Default Table of Contents depth")
+                        Spacer()
+                        Picker("Default Table of Contents depth", selection: $defaultTocDepth) {
+                            ForEach(1...6, id: \.self) { depth in
+                                Text("H\(depth)").tag(depth)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 90)
+                    }
+
+                    Toggle("Show Markdown Source in new windows", isOn: $defaultRawVisible)
+                        .toggleStyle(.checkbox)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(4)
+            }
+            .padding(.top, 12)
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
                     VStack(alignment: .leading, spacing: 6) {
                         Toggle("Wrap long entries in the Table of Contents", isOn: $tocWrap)
                             .toggleStyle(.checkbox)
@@ -161,8 +202,8 @@ struct GeneralSettingsView: View {
             .padding(.top, 12)
 
             Spacer()
+            }
         }
-        .padding(20)
         .onAppear {
             checkIfDefault()
         }
@@ -367,15 +408,16 @@ struct MarkdownSettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Markdown Extensions")
-                .font(.headline)
-                .padding(.bottom, 8)
+        SettingsScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Markdown Extensions")
+                    .font(.headline)
+                    .padding(.bottom, 8)
 
-            Text("Enable or disable inline syntax extensions applied during rendering.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 16)
+                Text("Enable or disable inline syntax extensions applied during rendering.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 16)
 
             GroupBox {
                 VStack(spacing: 0) {
@@ -419,8 +461,8 @@ struct MarkdownSettingsView: View {
             }
 
             Spacer()
+            }
         }
-        .padding(20)
     }
 
     private func extensionRow(name: String, example: String, isOn: Binding<Bool>) -> some View {

@@ -1,4 +1,5 @@
 import XCTest
+@testable import markdownViewr
 
 final class TemplateScrollbarTests: XCTestCase {
     func testTemplateStylesAllScrollbarsWithThemeColors() throws {
@@ -89,7 +90,8 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(menuSource.contains("ExternalEditorFileMenuController.shared.update(in: fileMenu)"))
         XCTAssertTrue(menuSource.contains(#"normalizedTitle == "Open Recent""#))
         XCTAssertTrue(menuSource.contains("NSMenuItem.separator()"))
-        XCTAssertTrue(menuSource.contains("NSDocumentController.shared.currentDocument?.fileURL"))
+        XCTAssertTrue(menuSource.contains("ExternalEditorFileMenuController.currentOpenDocumentFileURL()"))
+        XCTAssertTrue(menuSource.contains("window?.isVisible == true"))
         XCTAssertFalse(appSource.contains(".disabled(fileURL == nil)"))
     }
 
@@ -118,22 +120,184 @@ final class TemplateScrollbarTests: XCTestCase {
 
     func testViewMenuIncludesTogglesForTableOfContentsAndMarkdownSource() throws {
         let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
 
-        XCTAssertTrue(appSource.contains(#"@AppStorage("tocVisible") private var tocVisible"#))
-        XCTAssertTrue(appSource.contains(#"@AppStorage("rawVisible") private var rawVisible"#))
-        XCTAssertTrue(appSource.contains(#"Toggle("Table of Contents", isOn: $tocVisible)"#))
-        XCTAssertTrue(appSource.contains(#"Toggle("Markdown Source", isOn: $rawVisible)"#))
+        XCTAssertFalse(appSource.contains(#"@AppStorage("tocVisible")"#))
+        XCTAssertFalse(appSource.contains(#"@AppStorage("rawVisible")"#))
+        XCTAssertFalse(contentSource.contains(#"@AppStorage("tocVisible")"#))
+        XCTAssertFalse(contentSource.contains(#"@AppStorage("rawVisible")"#))
+        XCTAssertTrue(contentSource.contains("@State private var tocVisible = false"))
+        XCTAssertTrue(contentSource.contains("@State private var rawVisible = false"))
+        XCTAssertTrue(contentSource.contains(".focusedSceneValue(\\.documentViewCommands, documentViewCommands)"))
+        XCTAssertFalse(contentSource.contains(".focusedValue(\\.documentViewCommands, documentViewCommands)"))
+        XCTAssertTrue(appSource.contains("@FocusedValue(\\.documentViewCommands) private var documentViewCommands"))
+        XCTAssertTrue(appSource.contains(#"Toggle("Table of Contents", isOn: documentViewCommands?.tocVisible ?? .constant(false))"#))
+        XCTAssertTrue(appSource.contains(#"Toggle("Markdown Source", isOn: documentViewCommands?.rawVisible ?? .constant(false))"#))
     }
 
     func testViewMenuIncludesTableOfContentsDepthSubmenu() throws {
         let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
 
-        XCTAssertTrue(appSource.contains(#"@AppStorage("tocDepth") private var tocDepth"#))
+        XCTAssertFalse(appSource.contains(#"@AppStorage("tocDepth")"#))
+        XCTAssertFalse(contentSource.contains(#"@AppStorage("tocDepth")"#))
+        XCTAssertTrue(contentSource.contains("@State private var tocDepth = 3"))
         XCTAssertTrue(appSource.contains(#"Menu("Table of Contents Depth")"#))
         XCTAssertTrue(appSource.contains(#"ForEach(1...6, id: \.self)"#))
-        XCTAssertTrue(appSource.contains("tocDepth = depth"))
+        XCTAssertTrue(appSource.contains("documentViewCommands?.setTocDepth(depth)"))
         XCTAssertTrue(appSource.contains(#"Label("H\(depth)", systemImage: "checkmark")"#))
         XCTAssertFalse(appSource.contains(#"Picker("Table of Contents Depth", selection: $tocDepth)"#))
+    }
+
+    func testDocumentViewStateAndZoomAreWindowLocal() throws {
+        let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
+        let themeSource = try loadSourceFile("markdownViewr/ThemeManager.swift")
+
+        XCTAssertFalse(contentSource.contains(#"@AppStorage("tocWidth")"#))
+        XCTAssertFalse(contentSource.contains(#"@AppStorage("rawWidth")"#))
+        XCTAssertTrue(contentSource.contains("@State private var tocWidth: Double = 220"))
+        XCTAssertTrue(contentSource.contains("@State private var rawWidth: Double = 400"))
+        XCTAssertTrue(contentSource.contains("@State private var zoomScale = 1.0"))
+        XCTAssertTrue(contentSource.contains("themeManager.generateCSS(for: themeManager.activeTheme, zoomScale: zoomScale)"))
+        XCTAssertTrue(contentSource.contains("setZoomScale: { zoomScale = $0 }"))
+        XCTAssertTrue(contentSource.contains("zoomScale: Binding("))
+        XCTAssertTrue(appSource.contains("documentViewCommands?.zoomIn()"))
+        XCTAssertTrue(appSource.contains("documentViewCommands?.zoomOut()"))
+        XCTAssertTrue(appSource.contains("documentViewCommands?.zoomReset()"))
+        XCTAssertFalse(appSource.contains("themeManager.zoomIn()"))
+        XCTAssertFalse(appSource.contains("themeManager.zoomOut()"))
+        XCTAssertFalse(appSource.contains("themeManager.zoomReset()"))
+        XCTAssertTrue(themeSource.contains("func generateCSS(for theme: Theme, zoomScale: Double) -> String"))
+    }
+
+    func testSettingsIncludeNewWindowViewDefaults() throws {
+        let settingsSource = try loadSourceFile("markdownViewr/SettingsView.swift")
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
+        let webViewSource = try loadSourceFile("markdownViewr/MarkdownWebView.swift")
+
+        XCTAssertTrue(settingsSource.contains(#"@AppStorage("defaultTocVisible") private var defaultTocVisible = false"#))
+        XCTAssertTrue(settingsSource.contains(#"@AppStorage("defaultTocDepth") private var defaultTocDepth = 3"#))
+        XCTAssertTrue(settingsSource.contains(#"@AppStorage("defaultRawVisible") private var defaultRawVisible = false"#))
+        XCTAssertTrue(settingsSource.contains(#"Toggle("Show Table of Contents in new windows", isOn: $defaultTocVisible)"#))
+        XCTAssertTrue(settingsSource.contains(#"Picker("Default Table of Contents depth", selection: $defaultTocDepth)"#))
+        XCTAssertTrue(settingsSource.contains(#"Toggle("Show Markdown Source in new windows", isOn: $defaultRawVisible)"#))
+        XCTAssertTrue(contentSource.contains(#"@AppStorage("defaultTocVisible") private var defaultTocVisible = false"#))
+        XCTAssertTrue(contentSource.contains(#"@AppStorage("defaultTocDepth") private var defaultTocDepth = 3"#))
+        XCTAssertTrue(contentSource.contains(#"@AppStorage("defaultRawVisible") private var defaultRawVisible = false"#))
+        XCTAssertTrue(contentSource.contains("initializeWindowViewStateIfNeeded(windowWidth: Double(window.contentView?.bounds.width ?? 0))"))
+        XCTAssertFalse(contentSource.contains(".onAppear {\n            initializeWindowViewStateIfNeeded()"))
+        XCTAssertFalse(contentSource.contains("guard windowWidth > 0 else { return }"))
+        XCTAssertTrue(contentSource.contains("tocVisible = defaultTocVisible"))
+        XCTAssertTrue(contentSource.contains("tocDepth = defaultTocDepth"))
+        XCTAssertTrue(contentSource.contains("rawVisible = defaultRawVisible"))
+        XCTAssertTrue(contentSource.contains("sizeInitialRawSourceIfNeeded(windowWidth: windowWidth)"))
+        XCTAssertTrue(contentSource.contains("guard rawVisible && !hasActivatedRawSource && windowWidth > 0 else { return }"))
+        XCTAssertTrue(contentSource.contains("windowWidth: windowWidth"))
+        XCTAssertTrue(webViewSource.contains("var isPageLoaded = false"))
+        XCTAssertTrue(webViewSource.contains("context.coordinator.isPageLoaded = false"))
+        XCTAssertTrue(webViewSource.contains("if !context.coordinator.isPageLoaded {"))
+        XCTAssertTrue(webViewSource.contains("context.coordinator.pendingTocVisible = tocVisible"))
+        XCTAssertTrue(webViewSource.contains("context.coordinator.pendingRawVisible = rawVisible"))
+        XCTAssertTrue(webViewSource.contains("isPageLoaded = true"))
+    }
+
+    func testSettingsTabsScrollWhenWindowIsSmall() throws {
+        let settingsSource = try loadSourceFile("markdownViewr/SettingsView.swift")
+        let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+
+        XCTAssertTrue(settingsSource.contains("private struct SettingsScrollView<Content: View>: View"))
+        XCTAssertTrue(settingsSource.contains("ScrollView(.vertical)"))
+        XCTAssertTrue(settingsSource.contains("content\n                .frame(maxWidth: .infinity, alignment: .topLeading)\n                .padding(20)"))
+        XCTAssertTrue(settingsSource.contains("SettingsScrollView {\n            VStack(alignment: .leading, spacing: 0) {\n                Text(\"General\")"))
+        XCTAssertTrue(settingsSource.contains("SettingsScrollView {\n            VStack(alignment: .leading, spacing: 0) {\n                Text(\"Markdown Extensions\")"))
+        XCTAssertFalse(settingsSource.contains("}\n        .padding(20)\n        .onAppear {\n            checkIfDefault()"))
+        XCTAssertFalse(settingsSource.contains("}\n        .padding(20)\n    }\n\n    private func extensionRow"))
+        XCTAssertTrue(settingsSource.contains("}\n        .padding(20)\n    }\n\n    private var selectedEditorIndex"))
+        XCTAssertFalse(settingsSource.contains("struct EditorsSettingsView: View {\n    var body: some View {\n        SettingsScrollView"))
+        XCTAssertFalse(settingsSource.contains("struct ThemeSettingsView: View {\n    var body: some View {\n        SettingsScrollView"))
+        XCTAssertTrue(appSource.contains("hostingView.frame = NSRect(x: 0, y: 0, width: 600, height: 720)"))
+        XCTAssertTrue(appSource.contains("contentRect: NSRect(x: 0, y: 0, width: 600, height: 720)"))
+        XCTAssertFalse(appSource.contains("hostingView.frame = NSRect(x: 0, y: 0, width: 600, height: 600)"))
+    }
+
+    func testDocumentWindowsUseLandscapeDefaultSize() throws {
+        let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+
+        XCTAssertTrue(appSource.contains(".defaultSize(width: 1100, height: 800)"))
+        XCTAssertTrue(appSource.contains("static func defaultDocumentWindowSize(tocVisible: Bool, rawVisible: Bool) -> NSSize"))
+        XCTAssertTrue(appSource.contains("let autosaveName = Self.autosaveName(for: fileURL)"))
+        XCTAssertTrue(appSource.contains("let restoredFrame = window.setFrameUsingName(autosaveName)"))
+        XCTAssertTrue(appSource.contains("window.setContentSize(Self.defaultDocumentWindowSize(tocVisible: defaultTocVisible, rawVisible: defaultRawVisible))"))
+        XCTAssertTrue(appSource.contains("window.center()"))
+        XCTAssertTrue(appSource.contains("window.setFrameAutosaveName(autosaveName)"))
+        XCTAssertTrue(appSource.contains("context.coordinator.configureSavingFrame(for: window, autosaveName: autosaveName)"))
+        XCTAssertTrue(appSource.contains("func updateNSView(_ nsView: NSView, context: Context)"))
+        XCTAssertTrue(appSource.contains("window.saveFrame(usingName: autosaveName)"))
+        XCTAssertTrue(appSource.contains("NSWindow.willCloseNotification"))
+        XCTAssertTrue(appSource.contains("NSWindow.didResizeNotification"))
+        XCTAssertTrue(appSource.contains("NSWindow.didMoveNotification"))
+        XCTAssertFalse(appSource.contains(".defaultSize(width: 700, height: 900)"))
+        XCTAssertFalse(appSource.contains("if !window.setFrameAutosaveName(autosaveName)"))
+        XCTAssertFalse(appSource.contains("fileURL.path.hashValue"))
+    }
+
+    func testDocumentWindowAutosaveNameIsStableAcrossLaunches() {
+        let fileURL = URL(fileURLWithPath: "/tmp/My File.md")
+
+        XCTAssertEqual(
+            DocumentWindowConfigurator.autosaveName(for: fileURL),
+            "doc-%2Ftmp%2FMy%20File.md"
+        )
+    }
+
+    func testDocumentWindowDefaultWidthAccountsForDefaultSidePanes() {
+        XCTAssertEqual(DocumentWindowConfigurator.defaultDocumentWindowSize(tocVisible: false, rawVisible: false), NSSize(width: 1100, height: 800))
+        XCTAssertEqual(DocumentWindowConfigurator.defaultDocumentWindowSize(tocVisible: true, rawVisible: false), NSSize(width: 1250, height: 800))
+        XCTAssertEqual(DocumentWindowConfigurator.defaultDocumentWindowSize(tocVisible: false, rawVisible: true), NSSize(width: 1350, height: 800))
+        XCTAssertEqual(DocumentWindowConfigurator.defaultDocumentWindowSize(tocVisible: true, rawVisible: true), NSSize(width: 1500, height: 800))
+    }
+
+    func testInitialSourceWidthUsesHalfAvailableWindowWidth() {
+        XCTAssertEqual(
+            DocumentViewLayout.initialRawWidth(windowWidth: 1200, tocVisible: false, tocWidth: 300),
+            600
+        )
+        XCTAssertEqual(
+            DocumentViewLayout.initialRawWidth(windowWidth: 1200, tocVisible: true, tocWidth: 300),
+            450
+        )
+        XCTAssertEqual(
+            DocumentViewLayout.initialRawWidth(windowWidth: 380, tocVisible: true, tocWidth: 260),
+            220
+        )
+        XCTAssertEqual(
+            DocumentViewLayout.initialRawWidth(windowWidth: 1500, tocVisible: true, tocWidth: 220),
+            640
+        )
+    }
+
+    func testSourceWidthOnlyAutoSizesOnFirstActivation() {
+        XCTAssertEqual(
+            DocumentViewLayout.rawWidthWhenActivating(
+                currentRawWidth: 360,
+                hasActivatedRawSource: false,
+                windowWidth: 1200,
+                tocVisible: true,
+                tocWidth: 300
+            ),
+            450
+        )
+        XCTAssertEqual(
+            DocumentViewLayout.rawWidthWhenActivating(
+                currentRawWidth: 360,
+                hasActivatedRawSource: true,
+                windowWidth: 1200,
+                tocVisible: true,
+                tocWidth: 300
+            ),
+            360
+        )
     }
 
     func testViewAndExternalEditorCommandsHaveKeyboardShortcuts() throws {
@@ -145,8 +309,9 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertFalse(appSource.contains(#".keyboardShortcut("m", modifiers: .command)"#))
         XCTAssertFalse(appSource.contains(#".keyboardShortcut("m", modifiers: [.command, .shift])"#))
         XCTAssertTrue(menuSource.contains(#"keyEquivalent: "e""#))
-        XCTAssertTrue(menuSource.contains("makeEditorMenuItem(title: title, editor: editor, keyEquivalent: \"e\")"))
+        XCTAssertTrue(menuSource.contains("makeEditorMenuItem(title: title, editor: editor, keyEquivalent: \"e\", isEnabled: hasOpenFile)"))
         XCTAssertTrue(menuSource.contains("keyEquivalent: index == 0 ? \"e\" : \"\""))
+        XCTAssertTrue(menuSource.contains("let hasOpenFile = currentFileURLProvider() != nil"))
         XCTAssertTrue(menuSource.contains("item.keyEquivalentModifierMask = [.command]"))
     }
 
@@ -190,6 +355,8 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("item.autovalidates = false"))
         XCTAssertTrue(contentSource.contains("item.view = externalEditorButton(isEnabled: !validEditors.isEmpty)"))
         XCTAssertTrue(contentSource.contains("private func externalEditorButton(isEnabled: Bool) -> NSButton"))
+        XCTAssertTrue(contentSource.contains("button.showsBorderOnlyWhileMouseInside = true"))
+        XCTAssertFalse(contentSource.contains("button.isBordered = false"))
         XCTAssertTrue(contentSource.contains("func validateToolbarItem(_ item: NSToolbarItem) -> Bool"))
         XCTAssertTrue(contentSource.contains("return hasValidExternalEditor"))
         XCTAssertTrue(contentSource.contains("showExternalEditorMenu(from: sender)"))
@@ -210,7 +377,8 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("toolbar.allowsUserCustomization = true"))
         XCTAssertTrue(contentSource.contains("toolbar.autosavesConfiguration = true"))
         XCTAssertTrue(contentSource.contains("toolbar.displayMode = NSToolbar.DisplayMode.default"))
-        XCTAssertTrue(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v2")"#))
+        XCTAssertTrue(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v3")"#))
+        XCTAssertFalse(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v2")"#))
         XCTAssertTrue(contentSource.contains("toolbarAllowedItemIdentifiers"))
         XCTAssertTrue(contentSource.contains("toolbarDefaultItemIdentifiers"))
     }
@@ -219,8 +387,8 @@ final class TemplateScrollbarTests: XCTestCase {
         let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
 
         XCTAssertTrue(contentSource.contains(".space"))
-        XCTAssertTrue(contentSource.contains(".flexibleSpace"))
-        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space, .flexibleSpace]"))
+        XCTAssertFalse(contentSource.contains(".flexibleSpace"))
+        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space]"))
         XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .space, .markdownSource, .zoom, .theme, .externalEditor]"))
     }
 

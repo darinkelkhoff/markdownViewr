@@ -62,6 +62,11 @@ struct MarkdownWebView: NSViewRepresentable {
             injectCSS(in: webView)
         }
 
+        if !context.coordinator.isPageLoaded {
+            queueInitialState(context: context)
+            return
+        }
+
         if context.coordinator.lastTocVisible != tocVisible {
             context.coordinator.lastTocVisible = tocVisible
             webView.evaluateJavaScript("setTOCVisible(\(tocVisible))") { _, _ in }
@@ -116,6 +121,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
         context.coordinator.lastHTML = html
         context.coordinator.lastCSS = themeCSS
+        context.coordinator.isPageLoaded = false
         #if MAS_BUILD
         // Images are inlined as data: URLs; a base href to the (sandboxed) folder is
         // both unreadable and unnecessary.
@@ -147,7 +153,11 @@ struct MarkdownWebView: NSViewRepresentable {
             webView.loadHTMLString(template, baseURL: nil)
         }
 
-        // Queue TOC state to apply after page loads
+        // Queue document state to apply after page loads.
+        queueInitialState(context: context)
+    }
+
+    private func queueInitialState(context: Context) {
         context.coordinator.pendingTocVisible = tocVisible
         context.coordinator.pendingTocDepth = tocDepth
         context.coordinator.pendingTocWidth = tocWidth
@@ -195,6 +205,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastRawSource: String = ""
         var lastRawVisible: Bool = false
         var lastRawWidth: Double = 400
+        var isPageLoaded = false
         var pendingTocVisible: Bool?
         var pendingTocDepth: Int?
         var pendingTocWidth: Double?
@@ -331,6 +342,7 @@ struct MarkdownWebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            isPageLoaded = true
             if let width = pendingTocWidth {
                 lastTocWidth = width
                 webView.evaluateJavaScript("setTOCWidth(\(width))") { _, _ in }

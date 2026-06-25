@@ -352,6 +352,10 @@ class ThemeManager: ObservableObject {
     }
 
     func generateCSS(for theme: Theme) -> String {
+        generateCSS(for: theme, zoomScale: zoomScale)
+    }
+
+    func generateCSS(for theme: Theme, zoomScale: Double) -> String {
         let bodyFont = theme.fonts.body == "System"
             ? "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif"
             : "'\(theme.fonts.body)', -apple-system, sans-serif"

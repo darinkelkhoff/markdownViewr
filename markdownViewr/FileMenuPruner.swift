@@ -49,8 +49,12 @@ final class FileMenuPrunerApplicationDelegate: NSObject, NSApplicationDelegate, 
     }
 }
 
-final class ExternalEditorFileMenuController: NSObject {
+final class ExternalEditorFileMenuController: NSObject, NSMenuItemValidation {
     static let shared = ExternalEditorFileMenuController()
+
+    var currentFileURLProvider: () -> URL? = {
+        ExternalEditorFileMenuController.currentOpenDocumentFileURL()
+    }
 
     weak var editorManager: EditorManager? {
         didSet {
@@ -75,6 +79,23 @@ final class ExternalEditorFileMenuController: NSObject {
         NSUserInterfaceItemIdentifier(itemIdentifier)
     }
 
+    static func currentOpenDocumentFileURL() -> URL? {
+        let documentController = NSDocumentController.shared
+        return currentOpenDocumentFileURL(in: [documentController.currentDocument] + documentController.documents)
+    }
+
+    static func currentOpenDocumentFileURL(in documents: [NSDocument?]) -> URL? {
+        for document in documents {
+            guard let document else { continue }
+            guard document.windowControllers.contains(where: { $0.window?.isVisible == true }) else { continue }
+            if let fileURL = document.fileURL {
+                return fileURL
+            }
+        }
+
+        return nil
+    }
+
     func updateMainMenu() {
         guard let fileMenu = FileMenuPruner.fileMenu(in: NSApplication.shared.mainMenu) else { return }
         update(in: fileMenu)
@@ -96,6 +117,7 @@ final class ExternalEditorFileMenuController: NSObject {
 
     private func makeExternalEditorItem() -> NSMenuItem {
         let editors = editorManager?.editors ?? []
+        let hasOpenFile = currentFileURLProvider() != nil
 
         switch ExternalEditorMenuState(editors: editors) {
         case .disabled:
@@ -104,7 +126,7 @@ final class ExternalEditorFileMenuController: NSObject {
             return item
 
         case let .single(editor, title):
-            return makeEditorMenuItem(title: title, editor: editor, keyEquivalent: "e")
+            return makeEditorMenuItem(title: title, editor: editor, keyEquivalent: "e", isEnabled: hasOpenFile)
 
         case let .submenu(editors):
             let item = NSMenuItem(title: "Open in External Editor", action: nil, keyEquivalent: "")
@@ -113,7 +135,8 @@ final class ExternalEditorFileMenuController: NSObject {
                 submenu.addItem(makeEditorMenuItem(
                     title: editor.name,
                     editor: editor,
-                    keyEquivalent: index == 0 ? "e" : ""
+                    keyEquivalent: index == 0 ? "e" : "",
+                    isEnabled: hasOpenFile
                 ))
             }
             item.submenu = submenu
@@ -121,15 +144,20 @@ final class ExternalEditorFileMenuController: NSObject {
         }
     }
 
-    private func makeEditorMenuItem(title: String, editor: EditorConfig, keyEquivalent: String = "") -> NSMenuItem {
+    private func makeEditorMenuItem(
+        title: String,
+        editor: EditorConfig,
+        keyEquivalent: String = "",
+        isEnabled: Bool = true
+    ) -> NSMenuItem {
         let item = NSMenuItem(
             title: title,
-            action: #selector(openInExternalEditor(_:)),
+            action: isEnabled ? #selector(openInExternalEditor(_:)) : nil,
             keyEquivalent: keyEquivalent
         )
-        item.target = self
+        item.target = isEnabled ? self : nil
         item.representedObject = editor.id.uuidString
-        item.isEnabled = true
+        item.isEnabled = isEnabled
         item.keyEquivalentModifierMask = [.command]
         return item
     }
@@ -138,10 +166,15 @@ final class ExternalEditorFileMenuController: NSObject {
         guard let editorIDString = sender.representedObject as? String,
               let editorID = UUID(uuidString: editorIDString),
               let editor = editorManager?.editors.first(where: { $0.id == editorID }),
-              let fileURL = NSDocumentController.shared.currentDocument?.fileURL
+              let fileURL = currentFileURLProvider()
         else { return }
 
         editorManager?.openFile(fileURL, with: editor)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        guard menuItem.representedObject as? String != nil else { return true }
+        return currentFileURLProvider() != nil
     }
 
     private func removeExistingItems(from menu: NSMenu) {

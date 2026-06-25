@@ -32,13 +32,19 @@ struct ContentView: View {
     @State private var renderedHTML = ""
     @State private var docNeedsImageAccess = false
     @StateObject private var toolbarController = DocumentToolbarController()
-    @AppStorage("tocVisible") private var tocVisible = false
-    @AppStorage("tocDepth") private var tocDepth = 3
-    @AppStorage("tocWidth") private var tocWidth: Double = 220
+    @AppStorage("defaultTocVisible") private var defaultTocVisible = false
+    @AppStorage("defaultTocDepth") private var defaultTocDepth = 3
+    @AppStorage("defaultRawVisible") private var defaultRawVisible = false
+    @State private var tocVisible = false
+    @State private var tocDepth = 3
+    @State private var tocWidth: Double = 220
     @AppStorage("tocWrap") private var tocWrap = false
     @AppStorage("tocBullets") private var tocBullets = false
-    @AppStorage("rawVisible") private var rawVisible = false
-    @AppStorage("rawWidth") private var rawWidth: Double = 400
+    @State private var rawVisible = false
+    @State private var rawWidth: Double = 400
+    @State private var hasActivatedRawSource = false
+    @State private var hasInitializedWindowViewState = false
+    @State private var zoomScale = 1.0
 
     private var currentMarkdown: String {
         liveContent.rawMarkdown.isEmpty ? document.rawMarkdown : liveContent.rawMarkdown
@@ -80,7 +86,7 @@ struct ContentView: View {
             }
             MarkdownWebView(
                 html: renderedHTML,
-                themeCSS: themeManager.generateCSS(for: themeManager.activeTheme),
+                themeCSS: themeManager.generateCSS(for: themeManager.activeTheme, zoomScale: zoomScale),
                 fileURL: fileURL,
                 findBar: findBar,
                 tocVisible: tocVisible,
@@ -116,6 +122,7 @@ struct ContentView: View {
         .background(WindowAccessor { window in
             findBar.window = window
             if let window {
+                initializeWindowViewStateIfNeeded(windowWidth: Double(window.contentView?.bounds.width ?? 0))
                 toolbarController.configure(
                     in: window,
                     themeManager: themeManager,
@@ -124,9 +131,11 @@ struct ContentView: View {
                     tocVisible: tocVisible,
                     tocDepth: tocDepth,
                     rawVisible: rawVisible,
+                    zoomScale: zoomScale,
                     setTocVisible: { tocVisible = $0 },
                     setTocDepth: { tocDepth = $0 },
-                    setRawVisible: { rawVisible = $0 },
+                    setRawVisible: setRawSourceVisible,
+                    setZoomScale: { zoomScale = $0 },
                     showMissingEditor: { editorName in
                         missingEditorName = editorName
                         showMissingEditorAlert = true
@@ -155,8 +164,111 @@ struct ContentView: View {
         } message: {
             Text("\"\(missingEditorName)\" could not be found. It may have been moved or uninstalled.")
         }
+        .focusedSceneValue(\.documentViewCommands, documentViewCommands)
     }
 
+    private var documentViewCommands: DocumentViewCommands {
+        DocumentViewCommands(
+            tocVisible: Binding(
+                get: { tocVisible },
+                set: { tocVisible = $0 }
+            ),
+            tocDepth: tocDepth,
+            setTocDepth: { tocDepth = $0 },
+            rawVisible: Binding(
+                get: { rawVisible },
+                set: setRawSourceVisible
+            ),
+            zoomScale: Binding(
+                get: { zoomScale },
+                set: { zoomScale = $0 }
+            ),
+            zoomIn: { zoomScale = min(zoomScale * 1.1, 5.0) },
+            zoomOut: { zoomScale = max(zoomScale / 1.1, 0.3) },
+            zoomReset: { zoomScale = 1.0 }
+        )
+    }
+
+    private func setRawSourceVisible(_ visible: Bool) {
+        if visible && !rawVisible {
+            rawWidth = DocumentViewLayout.rawWidthWhenActivating(
+                currentRawWidth: rawWidth,
+                hasActivatedRawSource: hasActivatedRawSource,
+                windowWidth: Double(findBar.window?.contentView?.bounds.width ?? 0),
+                tocVisible: tocVisible,
+                tocWidth: tocWidth
+            )
+            hasActivatedRawSource = true
+        }
+        rawVisible = visible
+    }
+
+    private func initializeWindowViewStateIfNeeded(windowWidth: Double) {
+        if hasInitializedWindowViewState {
+            sizeInitialRawSourceIfNeeded(windowWidth: windowWidth)
+            return
+        }
+        hasInitializedWindowViewState = true
+        tocVisible = defaultTocVisible
+        tocDepth = defaultTocDepth
+        rawVisible = defaultRawVisible
+        sizeInitialRawSourceIfNeeded(windowWidth: windowWidth)
+    }
+
+    private func sizeInitialRawSourceIfNeeded(windowWidth: Double) {
+        guard rawVisible && !hasActivatedRawSource && windowWidth > 0 else { return }
+        rawWidth = DocumentViewLayout.rawWidthWhenActivating(
+            currentRawWidth: rawWidth,
+            hasActivatedRawSource: hasActivatedRawSource,
+            windowWidth: windowWidth,
+            tocVisible: tocVisible,
+            tocWidth: tocWidth
+        )
+        hasActivatedRawSource = true
+    }
+
+}
+
+enum DocumentViewLayout {
+    static func initialRawWidth(windowWidth: Double, tocVisible: Bool, tocWidth: Double) -> Double {
+        let availableWidth = max(0, windowWidth - (tocVisible ? tocWidth : 0))
+        return max(220, availableWidth / 2)
+    }
+
+    static func rawWidthWhenActivating(
+        currentRawWidth: Double,
+        hasActivatedRawSource: Bool,
+        windowWidth: Double,
+        tocVisible: Bool,
+        tocWidth: Double
+    ) -> Double {
+        if hasActivatedRawSource {
+            return currentRawWidth
+        }
+        return initialRawWidth(windowWidth: windowWidth, tocVisible: tocVisible, tocWidth: tocWidth)
+    }
+}
+
+struct DocumentViewCommands {
+    let tocVisible: Binding<Bool>
+    let tocDepth: Int
+    let setTocDepth: (Int) -> Void
+    let rawVisible: Binding<Bool>
+    let zoomScale: Binding<Double>
+    let zoomIn: () -> Void
+    let zoomOut: () -> Void
+    let zoomReset: () -> Void
+}
+
+private struct DocumentViewCommandsKey: FocusedValueKey {
+    typealias Value = DocumentViewCommands
+}
+
+extension FocusedValues {
+    var documentViewCommands: DocumentViewCommands? {
+        get { self[DocumentViewCommandsKey.self] }
+        set { self[DocumentViewCommandsKey.self] = newValue }
+    }
 }
 
 final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDelegate {
@@ -167,9 +279,11 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     private var tocVisible = false
     private var tocDepth = 3
     private var rawVisible = false
+    private var zoomScale = 1.0
     private var setTocVisible: ((Bool) -> Void)?
     private var setTocDepth: ((Int) -> Void)?
     private var setRawVisible: ((Bool) -> Void)?
+    private var setZoomScale: ((Double) -> Void)?
     private var showMissingEditor: ((String) -> Void)?
 
     func configure(
@@ -180,9 +294,11 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         tocVisible: Bool,
         tocDepth: Int,
         rawVisible: Bool,
+        zoomScale: Double,
         setTocVisible: @escaping (Bool) -> Void,
         setTocDepth: @escaping (Int) -> Void,
         setRawVisible: @escaping (Bool) -> Void,
+        setZoomScale: @escaping (Double) -> Void,
         showMissingEditor: @escaping (String) -> Void
     ) {
         self.window = window
@@ -192,9 +308,11 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         self.tocVisible = tocVisible
         self.tocDepth = tocDepth
         self.rawVisible = rawVisible
+        self.zoomScale = zoomScale
         self.setTocVisible = setTocVisible
         self.setTocDepth = setTocDepth
         self.setRawVisible = setRawVisible
+        self.setZoomScale = setZoomScale
         self.showMissingEditor = showMissingEditor
 
         if window.toolbar?.identifier != .documentToolbar || window.toolbar?.delegate !== self {
@@ -210,7 +328,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space, .flexibleSpace]
+        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -375,7 +493,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         )
         button.bezelStyle = .texturedRounded
         button.imagePosition = .imageOnly
-        button.isBordered = false
+        button.showsBorderOnlyWhileMouseInside = true
         button.isEnabled = isEnabled
         button.toolTip = externalEditorHelp
         button.setAccessibilityLabel(externalEditorLabel)
@@ -403,7 +521,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     }
 
     private var zoomPercent: Int {
-        Int(round((themeManager?.zoomScale ?? 1.0) * 100))
+        Int(round(zoomScale * 100))
     }
 
     private func zoomMenuItem() -> NSMenuItem {
@@ -556,26 +674,26 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     @objc private func zoomSegmentSelected(_ sender: NSSegmentedControl) {
         switch sender.selectedSegment {
         case 0:
-            themeManager?.zoomOut()
+            setZoomScale?(max(zoomScale / 1.1, 0.3))
         case 1:
-            themeManager?.zoomReset()
+            setZoomScale?(1.0)
         case 2:
-            themeManager?.zoomIn()
+            setZoomScale?(min(zoomScale * 1.1, 5.0))
         default:
             break
         }
     }
 
     @objc private func zoomOut() {
-        themeManager?.zoomOut()
+        setZoomScale?(max(zoomScale / 1.1, 0.3))
     }
 
     @objc private func actualSize() {
-        themeManager?.zoomReset()
+        setZoomScale?(1.0)
     }
 
     @objc private func zoomIn() {
-        themeManager?.zoomIn()
+        setZoomScale?(min(zoomScale * 1.1, 5.0))
     }
 
     private func updateVisibleItems() {
@@ -636,7 +754,7 @@ private extension NSToolbarItem.Identifier {
 }
 
 private extension NSToolbar.Identifier {
-    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v2")
+    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v3")
 }
 
 private final class ZoomToolbarControlView: NSView {
