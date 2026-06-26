@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>markdownViewr 1.4.0 Release Notes</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1d1d1f;
+      background: #fff;
+      line-height: 1.5;
+    }
+
+    .release-notes {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.8rem;
+      letter-spacing: -0.02em;
+    }
+
+    .date {
+      margin: 0 0 24px;
+      color: #6e6e73;
+      font-size: 0.92rem;
+    }
+
+    h2 {
+      margin: 24px 0 8px;
+      font-size: 1.1rem;
+    }
+
+    ul {
+      margin: 8px 0 0;
+      padding-left: 1.35rem;
+    }
+
+    li {
+      margin: 8px 0;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #f5f5f7;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { color: #f5f5f7; background: #1c1c1e; }
+      .date { color: #a1a1a6; }
+      code { background: #2c2c2e; }
+    }
+  </style>
+</head>
+<body>
+  <div class="release-notes">
+    <h1>markdownViewr 1.4.0</h1>
+    <p class="date">Released June 26, 2026</p>
+
+    <h2>Native macOS toolbar customization</h2>
+    <ul>
+      <li>Added native macOS toolbar customization for document windows.</li>
+    </ul>
+
+    <h2>View settings now apply per window</h2>
+    <ul>
+      <li>TOC, TOC depth, Markdown Source, zoom, and active theme are now per-window settings.</li>
+      <li>Added Settings options to define default settings for new windows.</li>
+    </ul>
+
+    <h2>Menu and shortcut improvements</h2>
+    <ul>
+      <li>Cleaned up the File menu by removing New, Save, and Revert, and adding Open in External Editor.</li>
+      <li>Added View menu commands for TOC, Markdown Source, and TOC depth.</li>
+      <li>Added <code>Cmd-T</code> to toggle TOC, <code>Cmd-U</code> to toggle Markdown Source, and <code>Cmd-E</code> to open in the external editor.</li>
+    </ul>
+
+    <h2>Window and settings polish</h2>
+    <ul>
+      <li>Improved default window sizing and side pane widths.</li>
+      <li>Added per-file window size restoration.</li>
+      <li>Added the ability to reorder external editors.</li>
+    </ul>
+  </div>
+</body>
+</html>
