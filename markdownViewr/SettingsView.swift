@@ -507,10 +507,6 @@ struct ThemeSettingsView: View {
                 .padding(.bottom, 8)
 
             HStack {
-                Text("Drag to reorder. Cmd+Shift+↑/↓ cycles through enabled themes.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
                 Spacer()
 
                 HStack(spacing: 0) {

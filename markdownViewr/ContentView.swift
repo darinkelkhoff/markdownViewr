@@ -45,9 +45,15 @@ struct ContentView: View {
     @State private var hasActivatedRawSource = false
     @State private var hasInitializedWindowViewState = false
     @State private var zoomScale = 1.0
+    @State private var activeThemeName: String?
 
     private var currentMarkdown: String {
         liveContent.rawMarkdown.isEmpty ? document.rawMarkdown : liveContent.rawMarkdown
+    }
+
+    private var activeTheme: Theme {
+        let themeName = activeThemeName ?? themeManager.activeThemeName
+        return themeManager.themes.first { $0.name == themeName } ?? themeManager.activeTheme
     }
 
     private func rerender() {
@@ -86,7 +92,7 @@ struct ContentView: View {
             }
             MarkdownWebView(
                 html: renderedHTML,
-                themeCSS: themeManager.generateCSS(for: themeManager.activeTheme, zoomScale: zoomScale),
+                themeCSS: themeManager.generateCSS(for: activeTheme, zoomScale: zoomScale),
                 fileURL: fileURL,
                 findBar: findBar,
                 tocVisible: tocVisible,
@@ -132,10 +138,12 @@ struct ContentView: View {
                     tocDepth: tocDepth,
                     rawVisible: rawVisible,
                     zoomScale: zoomScale,
+                    activeThemeName: activeTheme.name,
                     setTocVisible: { tocVisible = $0 },
                     setTocDepth: { tocDepth = $0 },
                     setRawVisible: setRawSourceVisible,
                     setZoomScale: { zoomScale = $0 },
+                    setActiveThemeName: { activeThemeName = $0 },
                     showMissingEditor: { editorName in
                         missingEditorName = editorName
                         showMissingEditorAlert = true
@@ -185,8 +193,18 @@ struct ContentView: View {
             ),
             zoomIn: { zoomScale = min(zoomScale * 1.1, 5.0) },
             zoomOut: { zoomScale = max(zoomScale / 1.1, 0.3) },
-            zoomReset: { zoomScale = 1.0 }
+            zoomReset: { zoomScale = 1.0 },
+            nextTheme: { cycleTheme(direction: 1) },
+            previousTheme: { cycleTheme(direction: -1) }
         )
+    }
+
+    private func cycleTheme(direction: Int) {
+        guard !themeManager.themes.isEmpty else { return }
+        let currentThemeName = activeThemeName ?? themeManager.activeThemeName
+        let currentIndex = themeManager.themes.firstIndex { $0.name == currentThemeName } ?? 0
+        let newIndex = (currentIndex + direction + themeManager.themes.count) % themeManager.themes.count
+        activeThemeName = themeManager.themes[newIndex].name
     }
 
     private func setRawSourceVisible(_ visible: Bool) {
@@ -209,6 +227,7 @@ struct ContentView: View {
             return
         }
         hasInitializedWindowViewState = true
+        activeThemeName = themeManager.activeThemeName
         tocVisible = defaultTocVisible
         tocDepth = defaultTocDepth
         rawVisible = defaultRawVisible
@@ -258,6 +277,8 @@ struct DocumentViewCommands {
     let zoomIn: () -> Void
     let zoomOut: () -> Void
     let zoomReset: () -> Void
+    let nextTheme: () -> Void
+    let previousTheme: () -> Void
 }
 
 private struct DocumentViewCommandsKey: FocusedValueKey {
@@ -280,10 +301,12 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     private var tocDepth = 3
     private var rawVisible = false
     private var zoomScale = 1.0
+    private var activeThemeName = ""
     private var setTocVisible: ((Bool) -> Void)?
     private var setTocDepth: ((Int) -> Void)?
     private var setRawVisible: ((Bool) -> Void)?
     private var setZoomScale: ((Double) -> Void)?
+    private var setActiveThemeName: ((String) -> Void)?
     private var showMissingEditor: ((String) -> Void)?
 
     func configure(
@@ -295,10 +318,12 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         tocDepth: Int,
         rawVisible: Bool,
         zoomScale: Double,
+        activeThemeName: String,
         setTocVisible: @escaping (Bool) -> Void,
         setTocDepth: @escaping (Int) -> Void,
         setRawVisible: @escaping (Bool) -> Void,
         setZoomScale: @escaping (Double) -> Void,
+        setActiveThemeName: @escaping (String) -> Void,
         showMissingEditor: @escaping (String) -> Void
     ) {
         self.window = window
@@ -309,10 +334,12 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         self.tocDepth = tocDepth
         self.rawVisible = rawVisible
         self.zoomScale = zoomScale
+        self.activeThemeName = activeThemeName
         self.setTocVisible = setTocVisible
         self.setTocDepth = setTocDepth
         self.setRawVisible = setRawVisible
         self.setZoomScale = setZoomScale
+        self.setActiveThemeName = setActiveThemeName
         self.showMissingEditor = showMissingEditor
 
         if window.toolbar?.identifier != .documentToolbar || window.toolbar?.delegate !== self {
@@ -432,7 +459,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         for theme in themeManager?.themes ?? [] {
             popup.addItem(withTitle: theme.name)
         }
-        popup.selectItem(withTitle: themeManager?.activeThemeName ?? "")
+        popup.selectItem(withTitle: activeThemeName)
         popup.target = self
         popup.action = #selector(themeChanged(_:))
         item.view = popup
@@ -561,7 +588,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         for theme in themeManager?.themes ?? [] {
             let menuItem = NSMenuItem(title: theme.name, action: #selector(themeChangedFromMenu(_:)), keyEquivalent: "")
             menuItem.target = self
-            menuItem.state = theme.name == themeManager?.activeThemeName ? .on : .off
+            menuItem.state = theme.name == activeThemeName ? .on : .off
             menu.addItem(menuItem)
         }
         item.submenu = menu
@@ -620,11 +647,11 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
 
     @objc private func themeChanged(_ sender: NSPopUpButton) {
         guard let title = sender.selectedItem?.title else { return }
-        themeManager?.activeThemeName = title
+        setActiveThemeName?(title)
     }
 
     @objc private func themeChangedFromMenu(_ sender: NSMenuItem) {
-        themeManager?.activeThemeName = sender.title
+        setActiveThemeName?(sender.title)
     }
 
     @objc private func openExternalEditorFromToolbar(_ sender: Any?) {
@@ -723,7 +750,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
                     for theme in themeManager?.themes ?? [] {
                         popup.addItem(withTitle: theme.name)
                     }
-                    popup.selectItem(withTitle: themeManager?.activeThemeName ?? "")
+                    popup.selectItem(withTitle: activeThemeName)
                 }
                 item.menuFormRepresentation = themeMenuItem()
             case .externalEditor:

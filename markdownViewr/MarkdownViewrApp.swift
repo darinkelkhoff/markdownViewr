@@ -16,6 +16,7 @@ struct MarkdownViewrApp: App {
     #endif
     @StateObject private var themeManager = ThemeManager()
     @StateObject private var editorManager: EditorManager
+    @FocusedValue(\.documentViewCommands) private var documentViewCommands
 
     init() {
         let editorManager = EditorManager()
@@ -84,14 +85,16 @@ struct MarkdownViewrApp: App {
 
             CommandMenu("Theme") {
                 Button("Next Theme") {
-                    themeManager.cycleTheme(direction: 1)
+                    documentViewCommands?.nextTheme()
                 }
                 .keyboardShortcut(.downArrow, modifiers: [.command, .shift])
+                .disabled(documentViewCommands == nil)
 
                 Button("Previous Theme") {
-                    themeManager.cycleTheme(direction: -1)
+                    documentViewCommands?.previousTheme()
                 }
                 .keyboardShortcut(.upArrow, modifiers: [.command, .shift])
+                .disabled(documentViewCommands == nil)
             }
         }
     }

@@ -159,8 +159,12 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("@State private var tocWidth: Double = 220"))
         XCTAssertTrue(contentSource.contains("@State private var rawWidth: Double = 400"))
         XCTAssertTrue(contentSource.contains("@State private var zoomScale = 1.0"))
-        XCTAssertTrue(contentSource.contains("themeManager.generateCSS(for: themeManager.activeTheme, zoomScale: zoomScale)"))
+        XCTAssertTrue(contentSource.contains("@State private var activeThemeName: String?"))
+        XCTAssertTrue(contentSource.contains("private var activeTheme: Theme"))
+        XCTAssertTrue(contentSource.contains("themeManager.generateCSS(for: activeTheme, zoomScale: zoomScale)"))
+        XCTAssertTrue(contentSource.contains("activeThemeName = themeManager.activeThemeName"))
         XCTAssertTrue(contentSource.contains("setZoomScale: { zoomScale = $0 }"))
+        XCTAssertTrue(contentSource.contains("setActiveThemeName: { activeThemeName = $0 }"))
         XCTAssertTrue(contentSource.contains("zoomScale: Binding("))
         XCTAssertTrue(appSource.contains("documentViewCommands?.zoomIn()"))
         XCTAssertTrue(appSource.contains("documentViewCommands?.zoomOut()"))
@@ -168,6 +172,9 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertFalse(appSource.contains("themeManager.zoomIn()"))
         XCTAssertFalse(appSource.contains("themeManager.zoomOut()"))
         XCTAssertFalse(appSource.contains("themeManager.zoomReset()"))
+        XCTAssertFalse(appSource.contains("themeManager.cycleTheme(direction:"))
+        XCTAssertFalse(contentSource.contains("themeManager?.activeThemeName = title"))
+        XCTAssertFalse(contentSource.contains("themeManager?.activeThemeName = sender.title"))
         XCTAssertTrue(themeSource.contains("func generateCSS(for theme: Theme, zoomScale: Double) -> String"))
     }
 
