@@ -79,7 +79,12 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(appSource.contains("FileMenuPrunerApplicationDelegate"))
 
         let prunerSource = try loadSourceFile("markdownViewr/FileMenuPruner.swift")
-        XCTAssertTrue(prunerSource.contains("func menuWillOpen"))
+        XCTAssertTrue(prunerSource.contains("NSMenu.didBeginTrackingNotification"))
+        XCTAssertFalse(prunerSource.contains("NSMenuDelegate"))
+        XCTAssertFalse(prunerSource.contains(".delegate = self"))
+        XCTAssertFalse(prunerSource.contains("func menuNeedsUpdate"))
+        XCTAssertFalse(prunerSource.contains("func applicationWillUpdate"))
+        XCTAssertFalse(prunerSource.contains("func menuWillOpen"))
     }
 
     func testExternalEditorCommandIsSeparatedBelowOpenRecent() throws {
@@ -265,6 +270,11 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertEqual(DocumentWindowConfigurator.defaultDocumentWindowSize(tocVisible: true, rawVisible: true), NSSize(width: 1500, height: 800))
     }
 
+    func testDocumentWindowFrameConfigurationSkipsTabbedWindows() {
+        XCTAssertTrue(DocumentWindowConfigurator.shouldApplyDocumentFrame(isTabbedWindow: false))
+        XCTAssertFalse(DocumentWindowConfigurator.shouldApplyDocumentFrame(isTabbedWindow: true))
+    }
+
     func testInitialSourceWidthUsesHalfAvailableWindowWidth() {
         XCTAssertEqual(
             DocumentViewLayout.initialRawWidth(windowWidth: 1200, tocVisible: false, tocWidth: 300),
@@ -384,19 +394,26 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("toolbar.allowsUserCustomization = true"))
         XCTAssertTrue(contentSource.contains("toolbar.autosavesConfiguration = true"))
         XCTAssertTrue(contentSource.contains("toolbar.displayMode = NSToolbar.DisplayMode.default"))
-        XCTAssertTrue(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v3")"#))
-        XCTAssertFalse(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v2")"#))
+        XCTAssertTrue(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v5")"#))
+        XCTAssertTrue(contentSource.contains("removeLegacySavedToolbarConfigurations()"))
+        XCTAssertTrue(contentSource.contains(#""NSToolbar Configuration \(identifier)""#))
+        XCTAssertTrue(contentSource.contains(#""document-toolbar-v4""#))
+        XCTAssertFalse(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v4")"#))
+        XCTAssertTrue(contentSource.contains("} else if window.toolbar?.delegate !== self {\n            window.toolbar?.delegate = self\n        }"))
+        XCTAssertTrue(contentSource.contains("item.target = self"))
         XCTAssertTrue(contentSource.contains("toolbarAllowedItemIdentifiers"))
         XCTAssertTrue(contentSource.contains("toolbarDefaultItemIdentifiers"))
     }
 
-    func testAppKitToolbarCustomizationIncludesRepeatableSpaceItems() throws {
+    func testDocumentToolbarIncludesFixedSpaceItem() throws {
         let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
 
-        XCTAssertTrue(contentSource.contains(".space"))
+        XCTAssertFalse(contentSource.contains(".space"))
         XCTAssertFalse(contentSource.contains(".flexibleSpace"))
-        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space]"))
-        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .space, .markdownSource, .zoom, .theme, .externalEditor]"))
+        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .fixedSpace]"))
+        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .fixedSpace, .markdownSource, .zoom, .theme, .externalEditor]"))
+        XCTAssertTrue(contentSource.contains("case .fixedSpace:\n            return makeFixedSpaceItem()"))
+        XCTAssertTrue(contentSource.contains(#"NSToolbarItem.Identifier("document-fixed-space")"#))
     }
 
     private func loadTemplate() throws -> String {

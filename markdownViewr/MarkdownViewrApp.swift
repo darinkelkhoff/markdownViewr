@@ -169,6 +169,10 @@ struct DocumentWindowConfigurator: NSViewRepresentable {
         return NSSize(width: width, height: 800)
     }
 
+    static func shouldApplyDocumentFrame(isTabbedWindow: Bool) -> Bool {
+        !isTabbedWindow
+    }
+
     static func autosaveName(for fileURL: URL) -> String {
         var allowedCharacters = CharacterSet.alphanumerics
         allowedCharacters.insert(charactersIn: "-_.")
@@ -200,13 +204,19 @@ struct DocumentWindowConfigurator: NSViewRepresentable {
         let autosaveName = Self.autosaveName(for: fileURL)
         guard context.coordinator.needsConfiguration(for: window, autosaveName: autosaveName) else { return }
 
-        let restoredFrame = window.setFrameUsingName(autosaveName)
-        if !restoredFrame {
-            window.setContentSize(Self.defaultDocumentWindowSize(tocVisible: defaultTocVisible, rawVisible: defaultRawVisible))
-            window.center()
+        if Self.shouldApplyDocumentFrame(isTabbedWindow: Self.isTabbedWindow(window)) {
+            let restoredFrame = window.setFrameUsingName(autosaveName)
+            if !restoredFrame {
+                window.setContentSize(Self.defaultDocumentWindowSize(tocVisible: defaultTocVisible, rawVisible: defaultRawVisible))
+                window.center()
+            }
         }
         window.setFrameAutosaveName(autosaveName)
         context.coordinator.configureSavingFrame(for: window, autosaveName: autosaveName)
+    }
+
+    private static func isTabbedWindow(_ window: NSWindow) -> Bool {
+        window.tabbedWindows?.contains { $0 !== window } == true
     }
 
     class Coordinator {

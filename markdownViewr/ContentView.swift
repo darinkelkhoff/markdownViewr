@@ -342,24 +342,34 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         self.setActiveThemeName = setActiveThemeName
         self.showMissingEditor = showMissingEditor
 
-        if window.toolbar?.identifier != .documentToolbar || window.toolbar?.delegate !== self {
+        Self.removeLegacySavedToolbarConfigurations()
+        if window.toolbar?.identifier != .documentToolbar {
             let toolbar = NSToolbar(identifier: .documentToolbar)
             toolbar.delegate = self
             toolbar.allowsUserCustomization = true
             toolbar.autosavesConfiguration = true
             toolbar.displayMode = NSToolbar.DisplayMode.default
             window.toolbar = toolbar
+        } else if window.toolbar?.delegate !== self {
+            window.toolbar?.delegate = self
         }
 
         updateVisibleItems()
     }
 
+    private static func removeLegacySavedToolbarConfigurations() {
+        let defaults = UserDefaults.standard
+        for identifier in legacyToolbarIdentifiers {
+            defaults.removeObject(forKey: "NSToolbar Configuration \(identifier)")
+        }
+    }
+
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space]
+        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .fixedSpace]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .space, .markdownSource, .zoom, .theme, .externalEditor]
+        return [.toc, .tocDepth, .fixedSpace, .markdownSource, .zoom, .theme, .externalEditor]
     }
 
     func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -391,9 +401,23 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
             return makeThemeItem()
         case .externalEditor:
             return makeExternalEditorItem()
+        case .fixedSpace:
+            return makeFixedSpaceItem()
         default:
             return nil
         }
+    }
+
+    private func makeFixedSpaceItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .fixedSpace)
+        item.label = "Space"
+        item.paletteLabel = "Space"
+        let spacer = NSView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        spacer.widthAnchor.constraint(equalToConstant: 16).isActive = true
+        spacer.heightAnchor.constraint(equalToConstant: 1).isActive = true
+        item.view = spacer
+        return item
     }
 
     private func makeTOCItem() -> NSToolbarItem {
@@ -730,16 +754,22 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
             case .toc:
                 item.image = NSImage(systemSymbolName: tocVisible ? "list.bullet.circle.fill" : "list.bullet.circle", accessibilityDescription: "TOC")
                 item.toolTip = tocVisible ? "Hide Table of Contents" : "Show Table of Contents"
+                item.target = self
+                item.action = #selector(toggleTOC)
                 item.menuFormRepresentation = toolbarMenuItem(title: "TOC", action: #selector(toggleTOC), state: tocVisible ? .on : .off)
             case .tocDepth:
                 if let popup = item.view as? NSPopUpButton {
                     popup.selectItem(at: max(0, min(5, tocDepth - 1)))
                     popup.isEnabled = tocVisible
+                    popup.target = self
+                    popup.action = #selector(tocDepthChanged(_:))
                 }
                 item.menuFormRepresentation = tocDepthMenuItem()
             case .markdownSource:
                 item.image = NSImage(systemSymbolName: rawVisible ? "doc.plaintext.fill" : "doc.plaintext", accessibilityDescription: "Markdown Source")
                 item.toolTip = rawVisible ? "Hide Markdown Source" : "Show Markdown Source"
+                item.target = self
+                item.action = #selector(toggleMarkdownSource)
                 item.menuFormRepresentation = toolbarMenuItem(title: "Markdown Source", action: #selector(toggleMarkdownSource), state: rawVisible ? .on : .off)
             case .zoom:
                 item.view = zoomControlView()
@@ -751,6 +781,8 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
                         popup.addItem(withTitle: theme.name)
                     }
                     popup.selectItem(withTitle: activeThemeName)
+                    popup.target = self
+                    popup.action = #selector(themeChanged(_:))
                 }
                 item.menuFormRepresentation = themeMenuItem()
             case .externalEditor:
@@ -778,11 +810,19 @@ private extension NSToolbarItem.Identifier {
     static let zoom = NSToolbarItem.Identifier("zoom")
     static let theme = NSToolbarItem.Identifier("theme")
     static let externalEditor = NSToolbarItem.Identifier("external-editor")
+    static let fixedSpace = NSToolbarItem.Identifier("document-fixed-space")
 }
 
 private extension NSToolbar.Identifier {
-    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v3")
+    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v5")
 }
+
+private let legacyToolbarIdentifiers = [
+    "document-toolbar",
+    "document-toolbar-v2",
+    "document-toolbar-v3",
+    "document-toolbar-v4"
+]
 
 private final class ZoomToolbarControlView: NSView {
     private let control: NSSegmentedControl

@@ -25,25 +25,42 @@ enum FileMenuPruner {
     }
 }
 
-final class FileMenuPrunerApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class FileMenuPrunerApplicationDelegate: NSObject, NSApplicationDelegate {
+    private var menuObserver: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installMenuObserver()
         DispatchQueue.main.async {
             self.configureFileMenu()
         }
     }
 
-    func applicationWillUpdate(_ notification: Notification) {
-        configureFileMenu()
+    deinit {
+        if let menuObserver {
+            NotificationCenter.default.removeObserver(menuObserver)
+        }
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
-        FileMenuPruner.removeEditingItems(from: menu)
-        ExternalEditorFileMenuController.shared.update(in: menu)
+    private func installMenuObserver() {
+        guard menuObserver == nil else { return }
+        menuObserver = NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard let menu = notification.object as? NSMenu,
+                  menu === FileMenuPruner.fileMenu(in: NSApp.mainMenu)
+            else { return }
+            self.updateFileMenu(menu)
+        }
     }
 
     private func configureFileMenu() {
         guard let fileMenu = FileMenuPruner.fileMenu(in: NSApp.mainMenu) else { return }
-        fileMenu.delegate = self
+        updateFileMenu(fileMenu)
+    }
+
+    private func updateFileMenu(_ fileMenu: NSMenu) {
         FileMenuPruner.removeEditingItems(from: fileMenu)
         ExternalEditorFileMenuController.shared.update(in: fileMenu)
     }
