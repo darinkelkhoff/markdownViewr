@@ -211,7 +211,7 @@ body {
 #toc a.active {
     opacity: 1;
     color: var(--link);
-    font-weight: 600;
+    text-shadow: 0 0 0.35px currentColor;
 }
 
 #toc .toc-h2 { padding-left: 18px; }
@@ -440,6 +440,7 @@ function updateContent(html) {
     var content = _contentScroller();
     var scrollRatio = content.scrollTop /
         Math.max(1, content.scrollHeight - content.clientHeight);
+    _tocHoverHeadingId = null;
     _contentContainer().innerHTML = html;
     var newMax = content.scrollHeight - content.clientHeight;
     content.scrollTop = scrollRatio * newMax;
@@ -650,6 +651,8 @@ var _tocVisible = false;
 var _tocWidth = 220;
 var _tocWrap = false;
 var _tocBullets = false;
+var _tocHoverHeadingId = null;
+var _tocHoverHighlightSetup = false;
 var _rawVisible = false;
 var _rawWidth = 400;
 var _syncContentHeadings = [];
@@ -1008,6 +1011,7 @@ function setupTOCScrollHighlight() {
     var timeout;
     var content = _contentScroller();
     content.addEventListener('scroll', function() {
+        if (_tocHoverHeadingId) return;
         clearTimeout(timeout);
         timeout = setTimeout(highlightActiveTOC, 50);
     });
@@ -1036,7 +1040,36 @@ function _scrollTOCLinkIntoView(link) {
     toc.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
 }
 
+function _tocLinkForHeadingId(headingId) {
+    var toc = document.getElementById('toc');
+    var links = toc.querySelectorAll('a');
+
+    for (var i = 0; i < links.length; i++) {
+        if (links[i].dataset.headingId === headingId) return links[i];
+    }
+    return null;
+}
+
+function highlightTOCHeading(headingId, scrollIntoView) {
+    var toc = document.getElementById('toc');
+    if (!toc.classList.contains('visible')) return;
+
+    var links = toc.querySelectorAll('a');
+    var activeLink = _tocLinkForHeadingId(headingId);
+
+    for (var i = 0; i < links.length; i++) {
+        links[i].classList.remove('active');
+    }
+
+    if (activeLink) {
+        activeLink.classList.add('active');
+        if (scrollIntoView) _scrollTOCLinkIntoView(activeLink);
+    }
+}
+
 function highlightActiveTOC() {
+    if (_tocHoverHeadingId) return;
+
     var toc = document.getElementById('toc');
     if (!toc.classList.contains('visible')) return;
 
@@ -1054,16 +1087,116 @@ function highlightActiveTOC() {
         if (targetTop <= scrollTop + 60) {
             activeLink = links[i];
         }
-        links[i].classList.remove('active');
     }
     if (activeLink) {
-        activeLink.classList.add('active');
-        _scrollTOCLinkIntoView(activeLink);
+        highlightTOCHeading(activeLink.dataset.headingId, true);
+    }
+}
+
+function _lastHeadingInElement(element) {
+    if (element.matches && element.matches('h1, h2, h3, h4, h5, h6')) return element;
+    var headings = element.querySelectorAll ? element.querySelectorAll('h1, h2, h3, h4, h5, h6') : [];
+    return headings.length ? headings[headings.length - 1] : null;
+}
+
+function _headingForHoveredContent(element) {
+    var content = _contentContainer();
+    if (!element || !content.contains(element)) return null;
+
+    var heading = element.closest ? element.closest('h1, h2, h3, h4, h5, h6') : null;
+    if (heading && content.contains(heading)) return heading;
+
+    var node = element;
+    while (node && node !== content) {
+        var sibling = node.previousElementSibling;
+        while (sibling) {
+            var found = _lastHeadingInElement(sibling);
+            if (found) return found;
+            sibling = sibling.previousElementSibling;
+        }
+        node = node.parentElement;
+    }
+    return null;
+}
+
+function _headingForHoverPosition(clientY) {
+    var content = _contentContainer();
+    var headings = content.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    var activeHeading = null;
+
+    for (var i = 0; i < headings.length; i++) {
+        var heading = headings[i];
+        if (heading.getBoundingClientRect().top <= clientY) {
+            activeHeading = heading;
+        } else {
+            break;
+        }
+    }
+    return activeHeading;
+}
+
+function _headingIdForRawHoverPosition(clientY) {
+    var rawHeading = null;
+    for (var i = 0; i < _syncRawHeadings.length; i++) {
+        var heading = _syncRawHeadings[i];
+        if (heading.getBoundingClientRect().top <= clientY) {
+            rawHeading = i;
+        } else {
+            break;
+        }
+    }
+
+    if (rawHeading === null) return null;
+    return _tocHeadingIdForHover(_syncContentHeadings[rawHeading]);
+}
+
+function _tocHeadingIdForHover(heading) {
+    while (heading) {
+        if (heading.id && _tocLinkForHeadingId(heading.id)) return heading.id;
+        heading = _headingForHoveredContent(heading.previousElementSibling || heading.parentElement);
+    }
+    return null;
+}
+
+function _applyTOCHoverHeadingId(headingId) {
+    _tocHoverHeadingId = headingId;
+    if (_tocHoverHeadingId) {
+        highlightTOCHeading(_tocHoverHeadingId, false);
+    } else {
+        highlightActiveTOC();
+    }
+}
+
+function setupTOCHoverHighlight() {
+    if (_tocHoverHighlightSetup) return;
+    _tocHoverHighlightSetup = true;
+
+    var content = _contentScroller();
+    var raw = document.getElementById('raw-source');
+    content.addEventListener('mousemove', function(event) {
+        if (!_tocVisible) return;
+        var heading = _headingForHoverPosition(event.clientY);
+        _applyTOCHoverHeadingId(_tocHeadingIdForHover(heading));
+    });
+    content.addEventListener('mouseleave', function() {
+        _tocHoverHeadingId = null;
+        highlightActiveTOC();
+    });
+    if (raw) {
+        raw.addEventListener('mousemove', function(event) {
+            if (!_tocVisible || !_rawVisible) return;
+            _applyTOCHoverHeadingId(_headingIdForRawHoverPosition(event.clientY));
+        });
+        raw.addEventListener('mouseleave', function() {
+            _tocHoverHeadingId = null;
+            highlightActiveTOC();
+        });
     }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     setupCollapsibleHeadings();
+    setupTOCHoverHighlight();
     if (_tocVisible) {
         buildTOC();
         setupTOCScrollHighlight();
@@ -1119,9 +1252,26 @@ function _vimSendMessage(action) {
     }
 }
 
+function _handleCommandArrowScroll(e) {
+    if (!e.metaKey || e.shiftKey || e.ctrlKey || e.altKey) return false;
+    if (e.key === 'ArrowUp') {
+        _contentScroller().scrollTo({ top: 0, behavior: 'smooth' });
+        e.preventDefault();
+        return true;
+    }
+    if (e.key === 'ArrowDown') {
+        var content = _contentScroller();
+        content.scrollTo({ top: content.scrollHeight, behavior: 'smooth' });
+        e.preventDefault();
+        return true;
+    }
+    return false;
+}
+
 window.addEventListener('keydown', function(e) {
     var t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (_handleCommandArrowScroll(e)) return;
     if (e.metaKey || e.altKey) return;
 
     var key = e.key;

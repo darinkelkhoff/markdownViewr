@@ -51,6 +51,48 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertFalse(template.contains("activeLink.scrollIntoView"))
     }
 
+    func testCommandArrowKeysScrollDocumentToTopAndBottom() throws {
+        let template = try loadTemplate()
+
+        XCTAssertTrue(template.contains("function _handleCommandArrowScroll(e)"))
+        XCTAssertTrue(template.contains("if (!e.metaKey || e.shiftKey || e.ctrlKey || e.altKey) return false"))
+        XCTAssertTrue(template.contains("if (e.key === 'ArrowUp')"))
+        XCTAssertTrue(template.contains("_contentScroller().scrollTo({ top: 0, behavior: 'smooth' })"))
+        XCTAssertTrue(template.contains("if (e.key === 'ArrowDown')"))
+        XCTAssertTrue(template.contains("content.scrollTo({ top: content.scrollHeight, behavior: 'smooth' })"))
+        XCTAssertTrue(template.contains("if (_handleCommandArrowScroll(e)) return"))
+    }
+
+    func testTOCHighlightFollowsHoveredRenderedSection() throws {
+        let template = try loadTemplate()
+        let updateStart = try XCTUnwrap(template.range(of: "function updateContent(html)"))
+        let updateRemainder = template[updateStart.lowerBound...]
+        let updateEnd = try XCTUnwrap(updateRemainder.range(of: "var _findPairs"))
+        let updateContentFunction = String(updateRemainder[..<updateEnd.lowerBound])
+        let activeTOCRule = try cssRule("#toc a.active", in: template)
+
+        XCTAssertTrue(template.contains("var _tocHoverHeadingId = null"))
+        XCTAssertTrue(template.contains("function setupTOCHoverHighlight()"))
+        XCTAssertTrue(template.contains("content.addEventListener('mousemove'"))
+        XCTAssertTrue(template.contains("content.addEventListener('mouseleave'"))
+        XCTAssertTrue(template.contains("raw.addEventListener('mousemove'"))
+        XCTAssertTrue(template.contains("raw.addEventListener('mouseleave'"))
+        XCTAssertTrue(template.contains("function _headingForHoverPosition(clientY)"))
+        XCTAssertTrue(template.contains("_headingForHoverPosition(event.clientY)"))
+        XCTAssertTrue(template.contains("function _headingIdForRawHoverPosition(clientY)"))
+        XCTAssertTrue(template.contains("_headingIdForRawHoverPosition(event.clientY)"))
+        XCTAssertTrue(template.contains("heading.getBoundingClientRect().top <= clientY"))
+        XCTAssertTrue(template.contains("function _tocHeadingIdForHover(heading)"))
+        XCTAssertTrue(template.contains("_applyTOCHoverHeadingId(_tocHeadingIdForHover(heading))"))
+        XCTAssertTrue(template.contains("function _tocLinkForHeadingId(headingId)"))
+        XCTAssertTrue(template.contains("links[i].dataset.headingId === headingId"))
+        XCTAssertTrue(template.contains("if (_tocHoverHeadingId) return"))
+        XCTAssertTrue(template.contains("highlightTOCHeading(_tocHoverHeadingId, false)"))
+        XCTAssertTrue(template.contains("highlightActiveTOC()"))
+        XCTAssertTrue(updateContentFunction.contains("_tocHoverHeadingId = null"))
+        XCTAssertFalse(activeTOCRule.contains("font-weight"))
+    }
+
     func testCSSHelpDocumentsScrollbarSelectors() throws {
         let cssHelp = try loadSourceFile("markdownViewr/CSSHelpView.swift")
         let appHelp = try loadSourceFile("markdownViewr/HelpView.swift")
