@@ -23,6 +23,11 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Markdown", systemImage: "doc.plaintext")
                 }
+
+            PrintingSettingsView()
+                .tabItem {
+                    Label("Printing", systemImage: "printer")
+                }
         }
         .frame(minWidth: 560, maxWidth: .infinity, minHeight: 350, maxHeight: .infinity)
     }
@@ -478,6 +483,140 @@ struct MarkdownSettingsView: View {
                 .labelsHidden()
         }
         .padding(.vertical, 2)
+    }
+}
+
+struct PrintingSettingsView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @AppStorage("printTheme") private var printTheme = "Clean Printing"
+    @AppStorage("printBackgrounds") private var printBackgrounds = false
+    @AppStorage("printImages") private var printImages = true
+    @AppStorage("printZoom") private var printZoom = "Standard (100%)"
+    @AppStorage("printContentWidth") private var printContentWidth = "Full Page"
+    @AppStorage("printBorders") private var printBorders = false
+    @AppStorage("printPagePadding") private var printPagePadding = "0px"
+
+    var body: some View {
+        SettingsScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Printing")
+                    .font(.headline)
+                    .padding(.bottom, 16)
+                
+                GroupBox(label: Text("Print Theme")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Theme")
+                            Spacer()
+                            Picker("Print Theme", selection: $printTheme) {
+                                Text("Active Screen Theme").tag("Active Theme")
+                                Text("Plain HTML (Unstyled)").tag("Plain HTML")
+                                Text("Clean Printing (GitHub Light)").tag("Clean Printing")
+                                Divider()
+                                ForEach(themeManager.themes, id: \.name) { theme in
+                                    Text(theme.name).tag(theme.name)
+                                }
+                            }
+                            .frame(width: 200)
+                            .labelsHidden()
+                        }
+                        
+                        Text("Select the theme to use when printing or exporting to PDF.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(4)
+                }
+                
+                GroupBox(label: Text("Page Layout")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Include Background Colors", isOn: $printBackgrounds)
+                            .toggleStyle(.checkbox)
+                        
+                        Text("When enabled, code block backgrounds, blockquotes, and highlights will print with their theme colors. Disable to save ink.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Divider().padding(.vertical, 4)
+                        
+                        Toggle("Include Images", isOn: $printImages)
+                            .toggleStyle(.checkbox)
+                        
+                        Text("When enabled, inline and document images will print. Disable to save color ink and space.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Divider().padding(.vertical, 4)
+                        
+                        Toggle("Include Content Borders", isOn: $printBorders)
+                            .toggleStyle(.checkbox)
+                        
+                        Text("When enabled, adds borders to styled blocks like code blocks, blockquotes, and tables to guarantee contrast with page background.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Divider().padding(.vertical, 4)
+                        
+                        HStack {
+                            Text("Page Padding")
+                            Spacer()
+                            Picker("Page Padding", selection: $printPagePadding) {
+                                Text("None (0px)").tag("0px")
+                                Text("Small (24px)").tag("24px")
+                                Text("Medium (48px)").tag("48px")
+                                Text("Large (72px)").tag("72px")
+                            }
+                            .frame(width: 200)
+                            .labelsHidden()
+                        }
+                        
+                        Text("Add margins inside the background color container to keep text away from the page edge.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(4)
+                }
+                .padding(.top, 12)
+                
+                GroupBox(label: Text("Zoom & Scaling")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Font Zoom")
+                            Spacer()
+                            Picker("Font Zoom", selection: $printZoom) {
+                                Text("Standard (100%)").tag("Standard (100%)")
+                                Text("Match Screen").tag("Match Screen")
+                            }
+                            .frame(width: 200)
+                            .labelsHidden()
+                        }
+                        
+                        Text("Select whether the printed document inherits the screen zoom scaling.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Divider().padding(.vertical, 4)
+                        
+                        HStack {
+                            Text("Content Width")
+                            Spacer()
+                            Picker("Content Width", selection: $printContentWidth) {
+                                Text("Full Page Width").tag("Full Page")
+                                Text("Match Screen Width").tag("Match Screen")
+                            }
+                            .frame(width: 200)
+                            .labelsHidden()
+                        }
+                        
+                        Text("Select whether page layout uses full printable bounds or conforms to screen width guidelines.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(4)
+                }
+                .padding(.top, 12)
+            }
+        }
     }
 }
 
