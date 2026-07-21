@@ -410,8 +410,9 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
 
     private func makeFixedSpaceItem() -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: .fixedSpace)
-        item.label = "Space"
-        item.paletteLabel = "Space"
+        item.label = ""
+        item.paletteLabel = "Small Space"
+        item.isBordered = false
         let spacer = NSView()
         spacer.translatesAutoresizingMaskIntoConstraints = false
         spacer.widthAnchor.constraint(equalToConstant: 16).isActive = true
