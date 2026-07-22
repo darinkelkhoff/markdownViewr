@@ -169,6 +169,7 @@ struct ThemeSizes: Codable, Hashable {
         self.h5Size = h5Size
         self.h6Size = h6Size
         self.codeFontSize = codeFontSize
+        self.lineHeight = lineHeight
     }
 }
 

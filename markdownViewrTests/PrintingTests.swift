@@ -80,7 +80,7 @@ final class PrintingTests: XCTestCase {
 
         XCTAssertTrue(contentSource.contains("printDocument: @escaping () -> Void"))
         XCTAssertTrue(contentSource.contains("self.printDocument = printDocument"))
-        XCTAssertTrue(contentSource.contains(".printDocument, .fixedSpace"))
+        XCTAssertTrue(contentSource.contains(".printDocument, .space"))
         XCTAssertFalse(contentSource.contains("return [.toc, .tocDepth, .printDocument"))
         XCTAssertTrue(contentSource.contains("case .printDocument:\n            return makePrintItem()"))
         XCTAssertTrue(contentSource.contains(#"item.label = "Print""#))
