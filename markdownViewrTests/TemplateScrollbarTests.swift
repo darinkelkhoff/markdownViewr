@@ -410,7 +410,7 @@ final class TemplateScrollbarTests: XCTestCase {
 
         XCTAssertFalse(contentSource.contains(".space"))
         XCTAssertFalse(contentSource.contains(".flexibleSpace"))
-        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .fixedSpace]"))
+        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .printDocument, .fixedSpace]"))
         XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .fixedSpace, .markdownSource, .zoom, .theme, .externalEditor]"))
         XCTAssertTrue(contentSource.contains("case .fixedSpace:\n            return makeFixedSpaceItem()"))
         XCTAssertTrue(contentSource.contains(#"NSToolbarItem.Identifier("document-fixed-space")"#))

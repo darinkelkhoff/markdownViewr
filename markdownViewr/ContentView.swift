@@ -152,6 +152,7 @@ struct ContentView: View {
                     setRawVisible: setRawSourceVisible,
                     setZoomScale: { zoomScale = $0 },
                     setActiveThemeName: { activeThemeName = $0 },
+                    printDocument: { printActiveDocument() },
                     showMissingEditor: { editorName in
                         missingEditorName = editorName
                         showMissingEditorAlert = true
@@ -300,7 +301,7 @@ struct ContentView: View {
         webView.evaluateJavaScript(prepareJS) { [weak webView] _, _ in
             guard let webView = webView else { return }
 
-            let printInfo = NSPrintInfo.shared
+            guard let printInfo = NSPrintInfo.shared.copy() as? NSPrintInfo else { return }
             printInfo.horizontalPagination = .fit
             printInfo.verticalPagination = .automatic
             printInfo.leftMargin = 36
@@ -394,6 +395,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     private var setRawVisible: ((Bool) -> Void)?
     private var setZoomScale: ((Double) -> Void)?
     private var setActiveThemeName: ((String) -> Void)?
+    private var printDocument: (() -> Void)?
     private var showMissingEditor: ((String) -> Void)?
 
     func configure(
@@ -411,6 +413,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         setRawVisible: @escaping (Bool) -> Void,
         setZoomScale: @escaping (Double) -> Void,
         setActiveThemeName: @escaping (String) -> Void,
+        printDocument: @escaping () -> Void,
         showMissingEditor: @escaping (String) -> Void
     ) {
         self.window = window
@@ -427,6 +430,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         self.setRawVisible = setRawVisible
         self.setZoomScale = setZoomScale
         self.setActiveThemeName = setActiveThemeName
+        self.printDocument = printDocument
         self.showMissingEditor = showMissingEditor
 
         Self.removeLegacySavedToolbarConfigurations()
@@ -452,7 +456,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .fixedSpace]
+        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .printDocument, .fixedSpace]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -488,6 +492,8 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
             return makeThemeItem()
         case .externalEditor:
             return makeExternalEditorItem()
+        case .printDocument:
+            return makePrintItem()
         case .fixedSpace:
             return makeFixedSpaceItem()
         default:
@@ -601,6 +607,18 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         } else {
             item.menuFormRepresentation = toolbarMenuItem(title: externalEditorLabel, action: #selector(openExternalEditorFromToolbar(_:)))
         }
+        return item
+    }
+
+    private func makePrintItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .printDocument)
+        item.label = "Print"
+        item.paletteLabel = "Print"
+        item.toolTip = "Print"
+        item.image = NSImage(systemSymbolName: "printer", accessibilityDescription: "Print")
+        item.target = self
+        item.action = #selector(printDocumentFromToolbar)
+        item.menuFormRepresentation = toolbarMenuItem(title: "Print", action: #selector(printDocumentFromToolbar))
         return item
     }
 
@@ -826,6 +844,10 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         setZoomScale?(max(zoomScale / 1.1, 0.3))
     }
 
+    @objc private func printDocumentFromToolbar() {
+        printDocument?()
+    }
+
     @objc private func actualSize() {
         setZoomScale?(1.0)
     }
@@ -897,6 +919,7 @@ private extension NSToolbarItem.Identifier {
     static let zoom = NSToolbarItem.Identifier("zoom")
     static let theme = NSToolbarItem.Identifier("theme")
     static let externalEditor = NSToolbarItem.Identifier("external-editor")
+    static let printDocument = NSToolbarItem.Identifier("print-document")
     static let fixedSpace = NSToolbarItem.Identifier("document-fixed-space")
 }
 

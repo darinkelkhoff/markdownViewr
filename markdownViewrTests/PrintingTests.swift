@@ -67,6 +67,37 @@ final class PrintingTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("let stripWidth: Bool"))
         XCTAssertTrue(contentSource.contains("func restore()"))
     }
+
+    func testPrintOperationUsesCopiedPrintInfo() throws {
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
+
+        XCTAssertTrue(contentSource.contains("NSPrintInfo.shared.copy() as? NSPrintInfo"))
+        XCTAssertFalse(contentSource.contains("let printInfo = NSPrintInfo.shared\n"))
+    }
+
+    func testPrintToolbarItemIsAvailableForCustomization() throws {
+        let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
+
+        XCTAssertTrue(contentSource.contains("printDocument: @escaping () -> Void"))
+        XCTAssertTrue(contentSource.contains("self.printDocument = printDocument"))
+        XCTAssertTrue(contentSource.contains(".printDocument, .fixedSpace"))
+        XCTAssertFalse(contentSource.contains("return [.toc, .tocDepth, .printDocument"))
+        XCTAssertTrue(contentSource.contains("case .printDocument:\n            return makePrintItem()"))
+        XCTAssertTrue(contentSource.contains(#"item.label = "Print""#))
+        XCTAssertTrue(contentSource.contains(#"item.paletteLabel = "Print""#))
+        XCTAssertTrue(contentSource.contains(#"NSImage(systemSymbolName: "printer""#))
+        XCTAssertTrue(contentSource.contains("item.action = #selector(printDocumentFromToolbar)"))
+        XCTAssertTrue(contentSource.contains("@objc private func printDocumentFromToolbar()"))
+        XCTAssertTrue(contentSource.contains("printDocument?()"))
+        XCTAssertTrue(contentSource.contains(#"static let printDocument = NSToolbarItem.Identifier("print-document")"#))
+    }
+
+    func testXcodeGenConfigurationIncludesTestSources() throws {
+        let projectSource = try loadSourceFile("project.yml")
+
+        XCTAssertTrue(projectSource.contains("markdownViewrTests:"))
+        XCTAssertTrue(projectSource.contains("- markdownViewrTests"))
+    }
     
     func testSettingsViewIncludesPrintingTab() throws {
         let settingsSource = try loadSourceFile("markdownViewr/SettingsView.swift")
