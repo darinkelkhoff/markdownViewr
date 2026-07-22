@@ -122,7 +122,7 @@ final class PrintingTests: XCTestCase {
         // Verify Settings Layout Components (splits and columns)
         XCTAssertTrue(settingsSource.contains("Picker("))
         XCTAssertTrue(settingsSource.contains(#"Text("Plain HTML (Unstyled)")"#))
-        XCTAssertTrue(settingsSource.contains(#"Text("Clean Printing (GitHub Light)")"#))
+        XCTAssertTrue(settingsSource.contains(#"Text("Clean Printing")"#))
         XCTAssertTrue(settingsSource.contains(#"GroupBox(label: Text("Print Theme"))"#))
         XCTAssertTrue(settingsSource.contains(#"GroupBox(label: Text("Page Layout"))"#))
         XCTAssertTrue(settingsSource.contains(#"GroupBox(label: Text("Zoom & Scaling"))"#))
@@ -255,7 +255,15 @@ final class PrintingTests: XCTestCase {
         XCTAssertTrue(js.contains("document.documentElement.classList.remove('print-borders');"))
         XCTAssertTrue(js.contains("document.documentElement.style.removeProperty('--print-padding');"))
     }
-    
+
+    func testCleanPrintingThemeIsBuiltInAndIndependent() {
+        let theme = Theme.cleanPrinting
+        XCTAssertEqual(theme.name, "Clean Printing")
+        XCTAssertTrue(theme.isBuiltIn)
+        XCTAssertEqual(theme.colors.background, "#ffffff")
+        XCTAssertEqual(theme.colors.text, "#24292e")
+    }
+
     // 5. Test that template print query stylesheet contains the print-borders rules
     func testTemplatePrintStylesForBorders() throws {
         let template = try loadTemplate()

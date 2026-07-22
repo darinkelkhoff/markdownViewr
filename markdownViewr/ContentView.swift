@@ -268,13 +268,11 @@ struct ContentView: View {
         if printTheme == "Active Theme" {
             themeToPrint = activeTheme
         } else if printTheme == "Clean Printing" {
-            themeToPrint = themeManager.themes.first { $0.name == "GitHub Light" }
-                ?? themeManager.themes.first { $0.name.localizedCaseInsensitiveContains("light") }
-                ?? activeTheme
+            themeToPrint = Theme.cleanPrinting
         } else if printTheme == "Plain HTML" {
             themeToPrint = nil
         } else {
-            themeToPrint = themeManager.themes.first { $0.name == printTheme } ?? activeTheme
+            themeToPrint = themeManager.themes.first { $0.name == printTheme } ?? Theme.cleanPrinting
         }
 
         // Determine zoom scale based on print settings

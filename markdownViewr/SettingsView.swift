@@ -511,7 +511,7 @@ struct PrintingSettingsView: View {
                             Picker("Print Theme", selection: $printTheme) {
                                 Text("Active Screen Theme").tag("Active Theme")
                                 Text("Plain HTML (Unstyled)").tag("Plain HTML")
-                                Text("Clean Printing (GitHub Light)").tag("Clean Printing")
+                                Text("Clean Printing").tag("Clean Printing")
                                 Divider()
                                 ForEach(themeManager.themes, id: \.name) { theme in
                                     Text(theme.name).tag(theme.name)
