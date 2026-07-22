@@ -169,8 +169,10 @@ struct DocumentWindowConfigurator: NSViewRepresentable {
         return NSSize(width: width, height: 800)
     }
 
-    static func shouldApplyDocumentFrame(isTabbedWindow: Bool) -> Bool {
-        !isTabbedWindow
+    private static let windowsWithTabbedHistory = NSHashTable<NSWindow>.weakObjects()
+
+    static func shouldApplyDocumentFrame(isTabbedWindow: Bool, hasTabbedHistory: Bool = false) -> Bool {
+        !isTabbedWindow && !hasTabbedHistory
     }
 
     static func autosaveName(for fileURL: URL) -> String {
@@ -201,22 +203,46 @@ struct DocumentWindowConfigurator: NSViewRepresentable {
 
     private func configureWindow(for view: NSView, context: Context) {
         guard let window = view.window, let fileURL else { return }
+        window.isRestorable = false
         let autosaveName = Self.autosaveName(for: fileURL)
         guard context.coordinator.needsConfiguration(for: window, autosaveName: autosaveName) else { return }
 
-        if Self.shouldApplyDocumentFrame(isTabbedWindow: Self.isTabbedWindow(window)) {
+        let isTabbedWindow = Self.isTabbedWindow(window)
+        if isTabbedWindow {
+            Self.markTabGroupHasTabbedHistory(window)
+            context.coordinator.stopSavingFrame(for: window)
+            return
+        }
+
+        let hasTabbedHistory = Self.windowHasTabbedHistory(window)
+        if Self.shouldApplyDocumentFrame(isTabbedWindow: isTabbedWindow, hasTabbedHistory: hasTabbedHistory) {
             let restoredFrame = window.setFrameUsingName(autosaveName)
             if !restoredFrame {
                 window.setContentSize(Self.defaultDocumentWindowSize(tocVisible: defaultTocVisible, rawVisible: defaultRawVisible))
                 window.center()
             }
         }
-        window.setFrameAutosaveName(autosaveName)
+        if !hasTabbedHistory {
+            window.setFrameAutosaveName(autosaveName)
+        }
         context.coordinator.configureSavingFrame(for: window, autosaveName: autosaveName)
     }
 
     private static func isTabbedWindow(_ window: NSWindow) -> Bool {
         window.tabbedWindows?.contains { $0 !== window } == true
+    }
+
+    private static func markTabGroupHasTabbedHistory(_ window: NSWindow) {
+        let tabGroupWindows = window.tabbedWindows ?? [window]
+        tabGroupWindows.forEach {
+            windowsWithTabbedHistory.add($0)
+            $0.isRestorable = false
+            $0.setFrameAutosaveName("")
+        }
+    }
+
+    private static func windowHasTabbedHistory(_ window: NSWindow) -> Bool {
+        windowsWithTabbedHistory.contains(window)
     }
 
     class Coordinator {
@@ -258,6 +284,12 @@ struct DocumentWindowConfigurator: NSViewRepresentable {
                 )
             ]
             window.saveFrame(usingName: autosaveName)
+        }
+
+        func stopSavingFrame(for window: NSWindow) {
+            removeObservers()
+            configuredWindow = nil
+            configuredAutosaveName = nil
         }
 
         deinit {

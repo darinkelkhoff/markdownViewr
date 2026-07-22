@@ -314,7 +314,23 @@ final class TemplateScrollbarTests: XCTestCase {
 
     func testDocumentWindowFrameConfigurationSkipsTabbedWindows() {
         XCTAssertTrue(DocumentWindowConfigurator.shouldApplyDocumentFrame(isTabbedWindow: false))
+        XCTAssertFalse(DocumentWindowConfigurator.shouldApplyDocumentFrame(isTabbedWindow: false, hasTabbedHistory: true))
         XCTAssertFalse(DocumentWindowConfigurator.shouldApplyDocumentFrame(isTabbedWindow: true))
+    }
+
+    func testDocumentWindowFrameAutosaveSkipsTabbedWindows() throws {
+        let appSource = try loadSourceFile("markdownViewr/MarkdownViewrApp.swift")
+
+        XCTAssertTrue(appSource.contains("let isTabbedWindow = Self.isTabbedWindow(window)"))
+        XCTAssertTrue(appSource.contains("window.isRestorable = false"))
+        XCTAssertTrue(appSource.contains("if isTabbedWindow {\n            Self.markTabGroupHasTabbedHistory(window)\n            context.coordinator.stopSavingFrame(for: window)\n            return\n        }"))
+        XCTAssertTrue(appSource.contains("Self.markTabGroupHasTabbedHistory(window)"))
+        XCTAssertTrue(appSource.contains("tabGroupWindows.forEach {\n            windowsWithTabbedHistory.add($0)\n            $0.isRestorable = false\n            $0.setFrameAutosaveName(\"\")\n        }"))
+        XCTAssertTrue(appSource.contains("let hasTabbedHistory = Self.windowHasTabbedHistory(window)"))
+        XCTAssertTrue(appSource.contains("if !hasTabbedHistory {\n            window.setFrameAutosaveName(autosaveName)\n        }\n        context.coordinator.configureSavingFrame(for: window, autosaveName: autosaveName)"))
+        XCTAssertTrue(appSource.contains("private static let windowsWithTabbedHistory = NSHashTable<NSWindow>.weakObjects()"))
+        XCTAssertTrue(appSource.contains("func stopSavingFrame(for window: NSWindow)"))
+        XCTAssertFalse(appSource.contains("func consumeRecentlyTabbedWindow(_ window: NSWindow) -> Bool"))
     }
 
     func testInitialSourceWidthUsesHalfAvailableWindowWidth() {
