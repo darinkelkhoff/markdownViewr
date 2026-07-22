@@ -365,11 +365,11 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .fixedSpace]
+        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .space]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .fixedSpace, .markdownSource, .zoom, .theme, .externalEditor]
+        return [.toc, .tocDepth, .space, .markdownSource, .zoom, .theme, .externalEditor]
     }
 
     func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -401,24 +401,9 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
             return makeThemeItem()
         case .externalEditor:
             return makeExternalEditorItem()
-        case .fixedSpace:
-            return makeFixedSpaceItem()
         default:
             return nil
         }
-    }
-
-    private func makeFixedSpaceItem() -> NSToolbarItem {
-        let item = NSToolbarItem(itemIdentifier: .fixedSpace)
-        item.label = ""
-        item.paletteLabel = "Small Space"
-        item.isBordered = false
-        let spacer = NSView()
-        spacer.translatesAutoresizingMaskIntoConstraints = false
-        spacer.widthAnchor.constraint(equalToConstant: 16).isActive = true
-        spacer.heightAnchor.constraint(equalToConstant: 1).isActive = true
-        item.view = spacer
-        return item
     }
 
     private func makeTOCItem() -> NSToolbarItem {
@@ -811,18 +796,18 @@ private extension NSToolbarItem.Identifier {
     static let zoom = NSToolbarItem.Identifier("zoom")
     static let theme = NSToolbarItem.Identifier("theme")
     static let externalEditor = NSToolbarItem.Identifier("external-editor")
-    static let fixedSpace = NSToolbarItem.Identifier("document-fixed-space")
 }
 
 private extension NSToolbar.Identifier {
-    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v5")
+    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v6")
 }
 
 private let legacyToolbarIdentifiers = [
     "document-toolbar",
     "document-toolbar-v2",
     "document-toolbar-v3",
-    "document-toolbar-v4"
+    "document-toolbar-v4",
+    "document-toolbar-v5"
 ]
 
 private final class ZoomToolbarControlView: NSView {
