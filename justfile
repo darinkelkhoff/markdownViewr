@@ -67,6 +67,14 @@ release: kill
         echo "Error: v$VERSION is already released. Bump MARKETING_VERSION in project.yml first."
         exit 1
     fi
+    if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+        echo "Error: local tag v$VERSION already exists. Bump MARKETING_VERSION or delete the stale tag."
+        exit 1
+    fi
+    if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+        echo "Error: remote tag v$VERSION already exists. Bump MARKETING_VERSION or delete the stale tag."
+        exit 1
+    fi
     ARCHIVE="/tmp/markdownViewr.xcarchive"
     EXPORT="/tmp/markdownViewr-export"
     ZIP="/tmp/markdownViewr-$VERSION.zip"
@@ -112,11 +120,6 @@ release: kill
         --app-drop-link 480 185 \
         "$DMG" \
         "$DMG_STAGING/"
-    echo "==> Creating GitHub release v$VERSION..."
-    gh release create "v$VERSION" "$DMG" "$ZIP" \
-        --repo darinkelkhoff/markdownViewr \
-        --title "markdownViewr v$VERSION" \
-        --generate-notes
     echo "==> Updating appcast..."
     SPARKLE_BIN=$(find ~/Library/Developer/Xcode/DerivedData -path "*/artifacts/sparkle/Sparkle/bin" -type d 2>/dev/null | head -1)
     if [[ -z "$SPARKLE_BIN" ]]; then
@@ -133,7 +136,15 @@ release: kill
     echo "==> Committing and pushing appcast..."
     git add appcast.xml
     git commit -m "release: update appcast for v$VERSION"
+    echo "==> Tagging release v$VERSION..."
+    git tag -a "v$VERSION" -m "markdownViewr v$VERSION"
     git push origin main
+    git push origin "v$VERSION"
+    echo "==> Creating GitHub release v$VERSION..."
+    gh release create "v$VERSION" "$DMG" "$ZIP" \
+        --repo darinkelkhoff/markdownViewr \
+        --title "markdownViewr v$VERSION" \
+        --generate-notes
     just update-cask
     echo ""
     echo "Done! https://github.com/darinkelkhoff/markdownViewr/releases/tag/v$VERSION"
