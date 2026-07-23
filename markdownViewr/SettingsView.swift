@@ -502,7 +502,7 @@ struct PrintingSettingsView: View {
                 Text("Printing")
                     .font(.headline)
                     .padding(.bottom, 16)
-                
+
                 GroupBox(label: Text("Print Theme")) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -520,43 +520,43 @@ struct PrintingSettingsView: View {
                             .frame(width: 200)
                             .labelsHidden()
                         }
-                        
+
                         Text("Select the theme to use when printing or exporting to PDF.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .padding(4)
                 }
-                
+
                 GroupBox(label: Text("Page Layout")) {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("Include Background Colors", isOn: $printBackgrounds)
                             .toggleStyle(.checkbox)
-                        
+
                         Text("When enabled, code block backgrounds, blockquotes, and highlights will print with their theme colors. Disable to save ink.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        
+
                         Divider().padding(.vertical, 4)
-                        
+
                         Toggle("Include Images", isOn: $printImages)
                             .toggleStyle(.checkbox)
-                        
+
                         Text("When enabled, inline and document images will print. Disable to save color ink and space.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        
+
                         Divider().padding(.vertical, 4)
-                        
+
                         Toggle("Include Content Borders", isOn: $printBorders)
                             .toggleStyle(.checkbox)
-                        
+
                         Text("When enabled, adds borders to styled blocks like code blocks, blockquotes, and tables to guarantee contrast with page background.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        
+
                         Divider().padding(.vertical, 4)
-                        
+
                         HStack {
                             Text("Page Padding")
                             Spacer()
@@ -569,7 +569,7 @@ struct PrintingSettingsView: View {
                             .frame(width: 200)
                             .labelsHidden()
                         }
-                        
+
                         Text("Add margins inside the background color container to keep text away from the page edge.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -577,7 +577,7 @@ struct PrintingSettingsView: View {
                     .padding(4)
                 }
                 .padding(.top, 12)
-                
+
                 GroupBox(label: Text("Zoom & Scaling")) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -590,13 +590,13 @@ struct PrintingSettingsView: View {
                             .frame(width: 200)
                             .labelsHidden()
                         }
-                        
+
                         Text("Select whether the printed document inherits the screen zoom scaling.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        
+
                         Divider().padding(.vertical, 4)
-                        
+
                         HStack {
                             Text("Content Width")
                             Spacer()
@@ -607,7 +607,7 @@ struct PrintingSettingsView: View {
                             .frame(width: 200)
                             .labelsHidden()
                         }
-                        
+
                         Text("Select whether page layout uses full printable bounds or conforms to screen width guidelines.")
                             .font(.caption)
                             .foregroundStyle(.secondary)

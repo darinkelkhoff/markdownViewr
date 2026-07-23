@@ -414,7 +414,7 @@ mark {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
-    
+
     html, body {
         height: auto !important;
         overflow: visible !important;
@@ -422,7 +422,7 @@ mark {
         background-color: var(--bg) !important;
         color: var(--text) !important;
     }
-    
+
     #content {
         flex: none !important;
         height: auto !important;
@@ -433,30 +433,30 @@ mark {
         padding: 0 !important;
         display: block !important;
     }
-    
+
     #content-inner {
         padding: var(--print-padding, 0px) !important;
         margin: 0 !important;
     }
-    
+
     /* Force collapsed editor sections to print expanded */
     #content-inner > * {
         display: revert !important;
     }
-    
+
     html.print-full-width #content-inner {
         max-width: none !important;
     }
-    
+
     #toc, #toc-resizer, #raw-resizer, #raw-source, .collapse-arrow, .resizer {
         display: none !important;
     }
-    
+
     html.print-no-backgrounds, html.print-no-backgrounds body {
         background-color: #ffffff !important;
         color: #000000 !important;
     }
-    
+
     html.print-no-backgrounds * {
         -webkit-print-color-adjust: economy !important;
         print-color-adjust: economy !important;
@@ -466,18 +466,18 @@ mark {
         /* Avoid light text rendering on white backgrounds */
         color: #000000 !important;
     }
-    
+
     /* Maintain link readability in ink-saving mode */
     html.print-no-backgrounds a {
         color: #0969da !important;
         text-decoration: underline !important;
     }
-    
+
     /* Ensure rules and borders are visible in ink-saving mode */
     html.print-no-backgrounds hr {
         border-top: 1px solid #dddddd !important;
     }
-    html.print-no-backgrounds th, 
+    html.print-no-backgrounds th,
     html.print-no-backgrounds td {
         border: 1px solid #dddddd !important;
     }
@@ -490,50 +490,50 @@ mark {
     html.print-no-backgrounds h2 {
         border-bottom: 1px solid #eeeeee !important;
     }
-    
+
     /* Add borders to content blocks that have custom background colors when print-borders is active */
     html.print-borders pre,
     html.print-borders .frontmatter {
         border: 1px solid color-mix(in srgb, var(--text) 25%, transparent) !important;
     }
-    
+
     html.print-borders blockquote {
         border: 1px solid color-mix(in srgb, var(--text) 20%, transparent) !important;
         border-left: 4px solid var(--blockquote-border) !important;
     }
-    
+
     html.print-borders code {
         border: 1px solid color-mix(in srgb, var(--text) 30%, transparent) !important;
     }
-    
+
     /* Specific override to strip images when printImages is false */
     html.print-no-images #content-inner img,
     html.print-no-images #content-inner > img {
         display: none !important;
     }
-    
+
     /* Print Layout/Rendering Optimizations */
     h1, h2, h3, h4, h5, h6 {
         break-after: avoid !important;
         page-break-after: avoid !important;
     }
-    
+
     /* Keep lists and table rows unbroken on page boundaries */
     pre, blockquote, tr, li {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
     }
-    
+
     img {
         max-width: 100% !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
     }
-    
+
     thead {
         display: table-header-group !important;
     }
-    
+
     th, td {
         word-wrap: break-word !important;
         white-space: normal !important;
