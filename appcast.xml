@@ -10,6 +10,7 @@
             <pubDate>Thu, 23 Jul 2026 08:33:55 -0500</pubDate>
             <sparkle:version>10500</sparkle:version>
             <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+            <sparkle:releaseNotesLink>https://darinkelkhoff.github.io/markdownViewr/releases/1.5.0.html</sparkle:releaseNotesLink>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/darinkelkhoff/markdownViewr/releases/download/v1.5.0/markdownViewr-1.5.0.zip" length="4426474" type="application/octet-stream" sparkle:edSignature="sIjjKAMzb8Fv9zjr0vkfbpxeriD+lmkdB/L+wcs/Ay0mcvYu+WIr4UkIpeYBLsLevOl2aYfM3+KOhHdTjAnXDA=="/>
         </item>
