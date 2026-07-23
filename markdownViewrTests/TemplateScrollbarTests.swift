@@ -452,26 +452,29 @@ final class TemplateScrollbarTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("toolbar.allowsUserCustomization = true"))
         XCTAssertTrue(contentSource.contains("toolbar.autosavesConfiguration = true"))
         XCTAssertTrue(contentSource.contains("toolbar.displayMode = NSToolbar.DisplayMode.default"))
-        XCTAssertTrue(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v5")"#))
+        XCTAssertTrue(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v6")"#))
         XCTAssertTrue(contentSource.contains("removeLegacySavedToolbarConfigurations()"))
         XCTAssertTrue(contentSource.contains(#""NSToolbar Configuration \(identifier)""#))
+        XCTAssertTrue(contentSource.contains(#""document-toolbar-v5""#))
         XCTAssertTrue(contentSource.contains(#""document-toolbar-v4""#))
-        XCTAssertFalse(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v4")"#))
+        XCTAssertFalse(contentSource.contains(#"NSToolbar.Identifier("document-toolbar-v5")"#))
         XCTAssertTrue(contentSource.contains("} else if window.toolbar?.delegate !== self {\n            window.toolbar?.delegate = self\n        }"))
         XCTAssertTrue(contentSource.contains("item.target = self"))
         XCTAssertTrue(contentSource.contains("toolbarAllowedItemIdentifiers"))
         XCTAssertTrue(contentSource.contains("toolbarDefaultItemIdentifiers"))
     }
 
-    func testDocumentToolbarIncludesFixedSpaceItem() throws {
+    func testDocumentToolbarUsesNativeRepeatableSpaceItem() throws {
         let contentSource = try loadSourceFile("markdownViewr/ContentView.swift")
 
-        XCTAssertFalse(contentSource.contains(".space"))
+        XCTAssertTrue(contentSource.contains(".space"))
         XCTAssertFalse(contentSource.contains(".flexibleSpace"))
-        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .fixedSpace]"))
-        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .fixedSpace, .markdownSource, .zoom, .theme, .externalEditor]"))
-        XCTAssertTrue(contentSource.contains("case .fixedSpace:\n            return makeFixedSpaceItem()"))
-        XCTAssertTrue(contentSource.contains(#"NSToolbarItem.Identifier("document-fixed-space")"#))
+        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .printDocument, .space]"))
+        XCTAssertTrue(contentSource.contains("return [.toc, .tocDepth, .space, .markdownSource, .zoom, .theme, .externalEditor]"))
+        XCTAssertFalse(contentSource.contains("case .fixedSpace:"))
+        XCTAssertFalse(contentSource.contains("makeFixedSpaceItem"))
+        XCTAssertFalse(contentSource.contains(#"NSToolbarItem.Identifier("document-fixed-space")"#))
+        XCTAssertFalse(contentSource.contains("Small Space"))
     }
 
     private func loadTemplate() throws -> String {

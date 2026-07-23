@@ -172,3 +172,31 @@ struct ThemeSizes: Codable, Hashable {
         self.lineHeight = lineHeight
     }
 }
+
+extension Theme {
+    static let cleanPrinting = Theme(
+        name: "Clean Printing",
+        colors: ThemeColors(
+            background: "#ffffff",
+            text: "#24292e",
+            heading1: "#1b1f23",
+            heading2: "#1b1f23",
+            heading3: "#1b1f23",
+            heading4: "#1b1f23",
+            heading5: "#1b1f23",
+            heading6: "#1b1f23",
+            link: "#0366d6",
+            codeBackground: "#f6f8fa",
+            codeText: "#24292e",
+            blockquoteBorder: "#dfe2e5",
+            blockquoteBackground: "#fafbfc",
+            highlightBackground: "#fff5b1",
+            highlightText: "#24292e"
+        ),
+        fonts: ThemeFonts(body: "System", heading: "System", code: "SF Mono"),
+        sizes: ThemeSizes(),
+        customCSS: "",
+        isBuiltIn: true
+    )
+}
+

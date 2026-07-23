@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 class LiveContent: ObservableObject {
     @Published var rawMarkdown: String = ""
@@ -46,6 +47,13 @@ struct ContentView: View {
     @State private var hasInitializedWindowViewState = false
     @State private var zoomScale = 1.0
     @State private var activeThemeName: String?
+    @AppStorage("printTheme") private var printTheme = "Clean Printing"
+    @AppStorage("printBackgrounds") private var printBackgrounds = false
+    @AppStorage("printImages") private var printImages = true
+    @AppStorage("printZoom") private var printZoom = "Standard (100%)"
+    @AppStorage("printContentWidth") private var printContentWidth = "Full Page"
+    @AppStorage("printBorders") private var printBorders = false
+    @AppStorage("printPagePadding") private var printPagePadding = "0px"
 
     private var currentMarkdown: String {
         liveContent.rawMarkdown.isEmpty ? document.rawMarkdown : liveContent.rawMarkdown
@@ -144,6 +152,7 @@ struct ContentView: View {
                     setRawVisible: setRawSourceVisible,
                     setZoomScale: { zoomScale = $0 },
                     setActiveThemeName: { activeThemeName = $0 },
+                    printDocument: { printActiveDocument() },
                     showMissingEditor: { editorName in
                         missingEditorName = editorName
                         showMissingEditorAlert = true
@@ -195,7 +204,8 @@ struct ContentView: View {
             zoomOut: { zoomScale = max(zoomScale / 1.1, 0.3) },
             zoomReset: { zoomScale = 1.0 },
             nextTheme: { cycleTheme(direction: 1) },
-            previousTheme: { cycleTheme(direction: -1) }
+            previousTheme: { cycleTheme(direction: -1) },
+            printDocument: { printActiveDocument() }
         )
     }
 
@@ -246,6 +256,81 @@ struct ContentView: View {
         hasActivatedRawSource = true
     }
 
+    /// Triggers the native macOS print sheet modal for the active Markdown document.
+    /// It temporarily swaps in the print-specific theme CSS, applies layout class overrides,
+    /// presents the print panel, and restores the original theme when the print flow concludes.
+    @MainActor
+    private func printActiveDocument() {
+        guard let window = findBar.window else { return }
+        guard let webView = window.contentView?.firstSubview(ofType: WKWebView.self) else { return }
+
+        let themeToPrint: Theme?
+        if printTheme == "Active Theme" {
+            themeToPrint = activeTheme
+        } else if printTheme == "Clean Printing" {
+            themeToPrint = Theme.cleanPrinting
+        } else if printTheme == "Plain HTML" {
+            themeToPrint = nil
+        } else {
+            themeToPrint = themeManager.themes.first { $0.name == printTheme } ?? Theme.cleanPrinting
+        }
+
+        // Determine zoom scale based on print settings
+        let zoom = printZoom == "Match Screen" ? zoomScale : 1.0
+
+        let printCSS = themeToPrint != nil ? themeManager.generateCSS(for: themeToPrint!, zoomScale: zoom) : ""
+        let escapedPrintCSS = printCSS.escapedForJavaScriptLiteral()
+        let prepareJS = PrintScriptGenerator.prepareScript(
+            escapedCSS: escapedPrintCSS,
+            stripBackgrounds: !printBackgrounds,
+            stripImages: !printImages,
+            stripWidth: printContentWidth == "Full Page",
+            printBorders: printBorders,
+            pagePadding: printPagePadding
+        )
+
+        let restoreCSS = themeManager.generateCSS(for: activeTheme, zoomScale: zoomScale)
+        let printBackgroundsVal = printBackgrounds
+        let printImagesVal = printImages
+        let printContentWidthVal = printContentWidth
+        let printBordersVal = printBorders
+        let printPagePaddingVal = printPagePadding
+
+        webView.evaluateJavaScript(prepareJS) { [weak webView] _, _ in
+            guard let webView = webView else { return }
+
+            guard let printInfo = NSPrintInfo.shared.copy() as? NSPrintInfo else { return }
+            printInfo.horizontalPagination = .fit
+            printInfo.verticalPagination = .automatic
+            printInfo.leftMargin = 36
+            printInfo.rightMargin = 36
+            printInfo.topMargin = 36
+            printInfo.bottomMargin = 36
+
+            let printOp = webView.printOperation(with: printInfo)
+            printOp.showsPrintPanel = true
+            printOp.showsProgressPanel = true
+
+            let coordinator = PrintCoordinator(
+                webView: webView,
+                restoreCSS: restoreCSS,
+                stripBackgrounds: !printBackgroundsVal,
+                stripImages: !printImagesVal,
+                stripWidth: printContentWidthVal == "Full Page",
+                printBorders: printBordersVal,
+                pagePadding: printPagePaddingVal
+            )
+            let coordinatorPointer = Unmanaged.passRetained(coordinator).toOpaque()
+
+            printOp.runModal(
+                for: window,
+                delegate: coordinator,
+                didRun: #selector(PrintCoordinator.printOperationDidRun(_:success:contextInfo:)),
+                contextInfo: coordinatorPointer
+            )
+        }
+    }
+
 }
 
 enum DocumentViewLayout {
@@ -279,6 +364,7 @@ struct DocumentViewCommands {
     let zoomReset: () -> Void
     let nextTheme: () -> Void
     let previousTheme: () -> Void
+    let printDocument: () -> Void
 }
 
 private struct DocumentViewCommandsKey: FocusedValueKey {
@@ -307,6 +393,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     private var setRawVisible: ((Bool) -> Void)?
     private var setZoomScale: ((Double) -> Void)?
     private var setActiveThemeName: ((String) -> Void)?
+    private var printDocument: (() -> Void)?
     private var showMissingEditor: ((String) -> Void)?
 
     func configure(
@@ -324,6 +411,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         setRawVisible: @escaping (Bool) -> Void,
         setZoomScale: @escaping (Double) -> Void,
         setActiveThemeName: @escaping (String) -> Void,
+        printDocument: @escaping () -> Void,
         showMissingEditor: @escaping (String) -> Void
     ) {
         self.window = window
@@ -340,6 +428,7 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         self.setRawVisible = setRawVisible
         self.setZoomScale = setZoomScale
         self.setActiveThemeName = setActiveThemeName
+        self.printDocument = printDocument
         self.showMissingEditor = showMissingEditor
 
         Self.removeLegacySavedToolbarConfigurations()
@@ -365,11 +454,11 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .fixedSpace]
+        return [.toc, .tocDepth, .markdownSource, .zoom, .theme, .externalEditor, .printDocument, .space]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toc, .tocDepth, .fixedSpace, .markdownSource, .zoom, .theme, .externalEditor]
+        return [.toc, .tocDepth, .space, .markdownSource, .zoom, .theme, .externalEditor]
     }
 
     func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -401,23 +490,11 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
             return makeThemeItem()
         case .externalEditor:
             return makeExternalEditorItem()
-        case .fixedSpace:
-            return makeFixedSpaceItem()
+        case .printDocument:
+            return makePrintItem()
         default:
             return nil
         }
-    }
-
-    private func makeFixedSpaceItem() -> NSToolbarItem {
-        let item = NSToolbarItem(itemIdentifier: .fixedSpace)
-        item.label = "Space"
-        item.paletteLabel = "Space"
-        let spacer = NSView()
-        spacer.translatesAutoresizingMaskIntoConstraints = false
-        spacer.widthAnchor.constraint(equalToConstant: 16).isActive = true
-        spacer.heightAnchor.constraint(equalToConstant: 1).isActive = true
-        item.view = spacer
-        return item
     }
 
     private func makeTOCItem() -> NSToolbarItem {
@@ -514,6 +591,18 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         } else {
             item.menuFormRepresentation = toolbarMenuItem(title: externalEditorLabel, action: #selector(openExternalEditorFromToolbar(_:)))
         }
+        return item
+    }
+
+    private func makePrintItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .printDocument)
+        item.label = "Print"
+        item.paletteLabel = "Print"
+        item.toolTip = "Print"
+        item.image = NSImage(systemSymbolName: "printer", accessibilityDescription: "Print")
+        item.target = self
+        item.action = #selector(printDocumentFromToolbar)
+        item.menuFormRepresentation = toolbarMenuItem(title: "Print", action: #selector(printDocumentFromToolbar))
         return item
     }
 
@@ -739,6 +828,10 @@ final class DocumentToolbarController: NSObject, ObservableObject, NSToolbarDele
         setZoomScale?(max(zoomScale / 1.1, 0.3))
     }
 
+    @objc private func printDocumentFromToolbar() {
+        printDocument?()
+    }
+
     @objc private func actualSize() {
         setZoomScale?(1.0)
     }
@@ -810,18 +903,19 @@ private extension NSToolbarItem.Identifier {
     static let zoom = NSToolbarItem.Identifier("zoom")
     static let theme = NSToolbarItem.Identifier("theme")
     static let externalEditor = NSToolbarItem.Identifier("external-editor")
-    static let fixedSpace = NSToolbarItem.Identifier("document-fixed-space")
+    static let printDocument = NSToolbarItem.Identifier("print-document")
 }
 
 private extension NSToolbar.Identifier {
-    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v5")
+    static let documentToolbar = NSToolbar.Identifier("document-toolbar-v6")
 }
 
 private let legacyToolbarIdentifiers = [
     "document-toolbar",
     "document-toolbar-v2",
     "document-toolbar-v3",
-    "document-toolbar-v4"
+    "document-toolbar-v4",
+    "document-toolbar-v5"
 ]
 
 private final class ZoomToolbarControlView: NSView {
@@ -1002,5 +1096,133 @@ extension Color {
         let b = Double(rgb & 0x0000FF) / 255.0
 
         self.init(red: r, green: g, blue: b)
+    }
+}
+
+extension NSView {
+    func firstSubview<T: NSView>(ofType type: T.Type) -> T? {
+        if let match = self as? T {
+            return match
+        }
+        for subview in subviews {
+            if let match = subview.firstSubview(ofType: type) {
+                return match
+            }
+        }
+        return nil
+    }
+}
+
+/// A helper class to coordinate the print sheet operations in macOS.
+/// Since SwiftUI's `ContentView` is a struct, it cannot receive `@objc` target-action messages.
+/// This NSObject subclass serves as the delegate for `NSPrintOperation`, ensuring that when the
+/// modal print sheet closes, the web view is cleanly restored to its screen theme/styles and
+/// its manually-retained unmanaged reference pointer is released.
+@MainActor
+class PrintCoordinator: NSObject {
+    weak var webView: WKWebView?
+    let restoreCSS: String
+    let stripBackgrounds: Bool
+    let stripImages: Bool
+    let stripWidth: Bool
+    let printBorders: Bool
+    let pagePadding: String
+
+    init(webView: WKWebView, restoreCSS: String, stripBackgrounds: Bool, stripImages: Bool, stripWidth: Bool, printBorders: Bool, pagePadding: String) {
+        self.webView = webView
+        self.restoreCSS = restoreCSS
+        self.stripBackgrounds = stripBackgrounds
+        self.stripImages = stripImages
+        self.stripWidth = stripWidth
+        self.printBorders = printBorders
+        self.pagePadding = pagePadding
+        super.init()
+    }
+
+    /// Delegate callback executed by the macOS printing system after the print sheet runs.
+    /// It restores visual screen settings and releases the retained coordinate pointer.
+    @objc func printOperationDidRun(
+        _ printOperation: NSPrintOperation,
+        success: Bool,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        restore()
+        if let contextInfo = contextInfo {
+            // Balance the manual passRetained call done at instantiation to prevent memory leaks.
+            Unmanaged<PrintCoordinator>.fromOpaque(contextInfo).release()
+        }
+    }
+
+    /// Restores the web view's CSS variables and removes active print classes.
+    func restore() {
+        guard let webView = webView else { return }
+        let escapedCSS = restoreCSS.escapedForJavaScriptLiteral()
+        let restoreJS = PrintScriptGenerator.restoreScript(
+            escapedCSS: escapedCSS,
+            stripBackgrounds: stripBackgrounds,
+            stripImages: stripImages,
+            stripWidth: stripWidth,
+            printBorders: printBorders,
+            pagePadding: pagePadding
+        )
+        webView.evaluateJavaScript(restoreJS, completionHandler: nil)
+    }
+}
+
+/// Generates JavaScript commands for WebKit style updates during print operations.
+struct PrintScriptGenerator {
+    static func prepareScript(
+        escapedCSS: String,
+        stripBackgrounds: Bool,
+        stripImages: Bool,
+        stripWidth: Bool,
+        printBorders: Bool,
+        pagePadding: String
+    ) -> String {
+        let stripBackgroundsJS = stripBackgrounds ? "document.documentElement.classList.add('print-no-backgrounds');" : ""
+        let stripImagesJS = stripImages ? "document.documentElement.classList.add('print-no-images');" : ""
+        let fullWidthJS = stripWidth ? "document.documentElement.classList.add('print-full-width');" : ""
+        let bordersJS = printBorders ? "document.documentElement.classList.add('print-borders');" : ""
+        let paddingJS = "document.documentElement.style.setProperty('--print-padding', '\(pagePadding)');"
+        return """
+        document.getElementById('theme-css').textContent = '\(escapedCSS)';
+        \(stripBackgroundsJS)
+        \(stripImagesJS)
+        \(fullWidthJS)
+        \(bordersJS)
+        \(paddingJS)
+        """
+    }
+
+    static func restoreScript(
+        escapedCSS: String,
+        stripBackgrounds: Bool,
+        stripImages: Bool,
+        stripWidth: Bool,
+        printBorders: Bool,
+        pagePadding: String
+    ) -> String {
+        let removeBgJS = stripBackgrounds ? "document.documentElement.classList.remove('print-no-backgrounds');" : ""
+        let removeImgJS = stripImages ? "document.documentElement.classList.remove('print-no-images');" : ""
+        let removeWidthJS = stripWidth ? "document.documentElement.classList.remove('print-full-width');" : ""
+        let removeBordersJS = printBorders ? "document.documentElement.classList.remove('print-borders');" : ""
+        let removePaddingJS = "document.documentElement.style.removeProperty('--print-padding');"
+        return """
+        document.getElementById('theme-css').textContent = '\(escapedCSS)';
+        \(removeBgJS)
+        \(removeImgJS)
+        \(removeWidthJS)
+        \(removeBordersJS)
+        \(removePaddingJS)
+        """
+    }
+}
+
+fileprivate extension String {
+    func escapedForJavaScriptLiteral() -> String {
+        self.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "\\n")
     }
 }

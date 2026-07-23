@@ -55,6 +55,14 @@ struct MarkdownViewrApp: App {
                 .keyboardShortcut(",", modifiers: .command)
             }
 
+            CommandGroup(replacing: .printItem) {
+                Button("Print...") {
+                    documentViewCommands?.printDocument()
+                }
+                .keyboardShortcut("p", modifiers: .command)
+                .disabled(documentViewCommands == nil)
+            }
+
             CommandGroup(replacing: .textEditing) {
                 Button("Find...") {
                     NotificationCenter.default.post(name: .findToggle, object: nil)
